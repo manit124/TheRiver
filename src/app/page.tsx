@@ -17,7 +17,7 @@ export default function Home() {
   return (
     <div className="relative min-h-screen">
         {/* Title Section - Centered */}
-        <div className="h-screen flex items-center justify-center">
+        <div id="home" className="h-screen flex items-center justify-center">
           <div className="text-center">
             <AnimatedText
               text="TheRiver"
@@ -31,7 +31,7 @@ export default function Home() {
         </div>
 
         {/* Poker Mode Grid - Below the fold */}
-        <div className="min-h-screen flex flex-col items-center justify-center px-1 py-3 relative">
+        <div id="gamemodes" className="min-h-screen flex flex-col items-center justify-center px-1 py-3 relative">
           <PokerModeGrid />
           
           {/* Action Buttons - Close to carousel */}

@@ -1,6 +1,7 @@
 import type { Metadata } from 'next';
 import '@/styles/globals.css';
 import { RetroGrid } from '@/components/RetroGrid';
+import NavHeader from '@/components/NavHeader';
 
 export const metadata: Metadata = {
   title: 'TheRiver',
@@ -16,7 +17,8 @@ export default function RootLayout({
     <html lang="en">
       <body className="antialiased bg-black">
         <RetroGrid className="fixed inset-0" />
-        <div className="relative z-10">{children}</div>
+        <NavHeader />
+        <div className="relative z-10 pt-20 pb-20 sm:pb-0">{children}</div>
       </body>
     </html>
   );

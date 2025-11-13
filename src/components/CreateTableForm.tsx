@@ -146,11 +146,13 @@ export function CreateTableForm() {
           </Label>
         </div>
 
-        <InteractiveHoverButton
-          onClick={handleCreate}
-          text="Create Table"
-          className="w-full"
-        />
+        <div className="relative z-10">
+          <InteractiveHoverButton
+            onClick={handleCreate}
+            text="Create Table"
+            className="w-full relative z-10"
+          />
+        </div>
       </CardContent>
     </Card>
   );

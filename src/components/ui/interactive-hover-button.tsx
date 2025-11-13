@@ -29,7 +29,7 @@ const InteractiveHoverButton = React.forwardRef<
 
       className={cn(
 
-        "group relative w-52 overflow-hidden rounded-lg border border-white/20 bg-white/10 backdrop-blur-md px-10 py-8 text-center font-semibold text-white transition-all duration-300 min-h-14 shadow-lg",
+        "group relative w-52 overflow-hidden rounded-lg border border-white/20 bg-white/10 backdrop-blur-md px-10 py-8 text-center font-semibold text-white transition-all duration-300 min-h-14 shadow-lg cursor-pointer",
         "hover:bg-white/20 hover:border-white/30",
         "disabled:cursor-not-allowed disabled:opacity-50 disabled:hover:bg-white/10 disabled:hover:border-white/20",
 
