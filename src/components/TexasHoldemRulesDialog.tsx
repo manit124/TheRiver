@@ -20,12 +20,12 @@ export function TexasHoldemRulesDialog({ open, onOpenChange }: TexasHoldemRulesD
   return (
     <Dialog open={open} onOpenChange={onOpenChange}>
       <DialogContent 
-        className="max-w-2xl w-[90vw] max-h-[85vh] overflow-y-auto bg-gradient-to-br from-[#0a0a0a] via-[#1a1a1a] to-[#0a0a0a] border-white/10 shadow-[0_0_30px_rgba(255,255,255,0.05)] rounded-lg"
+        className="max-w-lg w-[60vw] max-h-lg h-[45vh] overflow-y-auto bg-gradient-to-br from-[#0a0a0a] via-[#1a1a1a] to-[#0a0a0a] border-white/10 shadow-[0_0_30px_rgba(255,255,255,0.05)] rounded-lg"
       >
         <DialogTitle className="sr-only">Texas Hold&apos;em Rules</DialogTitle>
-        <div className="p-8 space-y-6 font-mono">
+        <div className="p-2 font-mono">
           {/* Title */}
-          <div className="text-center">
+          <div className="text-center mb-6">
             <h2 className="text-3xl font-bold text-white mb-2 font-mono">TEXAS HOLD&apos;EM</h2>
             <div className="w-20 h-px bg-gradient-to-r from-transparent via-white/30 to-transparent mx-auto" />
           </div>
@@ -59,8 +59,11 @@ export function TexasHoldemRulesDialog({ open, onOpenChange }: TexasHoldemRulesD
             </section>
           </div>
 
+          {/* Spacer - adjust h-12 to move button up (lower number) or down (higher number) */}
+          <div className="h-5"></div>
+
           {/* Join Button */}
-          <div className="pt-6 flex justify-center">
+          <div className="pb-4 flex justify-center">
             <InteractiveHoverButton
               onClick={handleJoin}
               text="Click to Join"
