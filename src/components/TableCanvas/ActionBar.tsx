@@ -136,59 +136,57 @@ export function ActionBar({ tableState, playerId }: ActionBarProps) {
 
   // Always render buttons - never return null or different layouts
   return (
-    <div className="flex flex-col gap-3 min-h-[120px]">
-      {/* Action Buttons Container - Fixed height to prevent layout shifts */}
-      <div className="flex flex-col gap-2" style={{ transform: 'translateX(-30px)' }}>
-        {/* Raise Slider Bar */}
-        {showRaiseSlider && currentPlayer && canRaise && (
-          <div className="flex flex-col items-center gap-3 mb-2">
-            <div className="flex items-center gap-4" style={{ width: '100%', justifyContent: 'center' }}>
-              <div style={{ width: '408px', marginRight: 'auto', marginLeft: 'calc(50% - 204px)' }}>
-                <NumberFlowSlider
-                  value={[raiseAmount]}
-                  onValueChange={([value]) => {
-                    const increment = tableState.bigBlind || 10;
-                    const snapped = Math.floor(value / increment) * increment;
-                    const minRaise = (tableState.minBet || 0) + increment;
-                    setRaiseAmount(
-                      Math.max(minRaise, Math.min(snapped, currentPlayer.stack))
-                    );
-                  }}
-                  min={(tableState.minBet || 0) + (tableState.bigBlind || 10)}
-                  max={currentPlayer.stack}
-                  step={tableState.bigBlind || 10}
-                  className="w-full"
-                />
-              </div>
-            </div>
+    <div className="flex flex-col gap-3 min-h-[120px] relative" style={{ transform: 'translateX(-30px)' }}>
+      {/* Raise Slider Bar - Positioned absolutely above buttons */}
+      {showRaiseSlider && currentPlayer && canRaise && (
+        <div className="absolute bottom-16 left-1/2 -translate-x-1/2 flex flex-col items-center gap-3 z-10">
+          <div className="flex items-center gap-4" style={{ width: '408px' }}>
+            <NumberFlowSlider
+              value={[raiseAmount]}
+              onValueChange={([value]) => {
+                const increment = tableState.bigBlind || 10;
+                const snapped = Math.floor(value / increment) * increment;
+                const minRaise = (tableState.minBet || 0) + increment;
+                setRaiseAmount(
+                  Math.max(minRaise, Math.min(snapped, currentPlayer.stack))
+                );
+              }}
+              min={(tableState.minBet || 0) + (tableState.bigBlind || 10)}
+              max={currentPlayer.stack}
+              step={tableState.bigBlind || 10}
+              className="w-full"
+            />
           </div>
-        )}
+        </div>
+      )}
 
-        {/* Betting Slider Bar */}
-        {canBet && !showRaiseSlider && (
-          <div className="flex items-center justify-center gap-3 mb-2">
-            <span className="text-white text-sm font-mono">↑ {betAmount}</span>
-            <div className="w-[408px]">
-              <Slider
-                value={[betAmount]}
-                onValueChange={([value]) => {
-                  const increment = tableState.bigBlind || 10;
-                  const snapped = Math.floor(value / increment) * increment;
-                  setBetAmount(
-                    Math.max(tableState.minBet || 0, Math.min(snapped, currentPlayer?.stack || 0))
-                  );
-                }}
-                min={tableState.minBet || 0}
-                max={currentPlayer?.stack || 0}
-                step={tableState.bigBlind || 10}
-                className="w-full"
-              />
-            </div>
+      {/* Betting Slider Bar - Positioned absolutely above buttons */}
+      {canBet && !showRaiseSlider && (
+        <div className="absolute bottom-16 left-1/2 -translate-x-1/2 flex items-center justify-center gap-3 z-10">
+          <span className="text-white text-sm font-mono">↑ {betAmount}</span>
+          <div className="w-[408px]">
+            <Slider
+              value={[betAmount]}
+              onValueChange={([value]) => {
+                const increment = tableState.bigBlind || 10;
+                const snapped = Math.floor(value / increment) * increment;
+                setBetAmount(
+                  Math.max(tableState.minBet || 0, Math.min(snapped, currentPlayer?.stack || 0))
+                );
+              }}
+              min={tableState.minBet || 0}
+              max={currentPlayer?.stack || 0}
+              step={tableState.bigBlind || 10}
+              className="w-full"
+            />
           </div>
-        )}
+        </div>
+      )}
 
+      {/* Action Buttons Container - Fixed position at bottom */}
+      <div className="flex flex-col gap-2">
         {/* Action Buttons - Only 3 buttons: Check/Call, Raise, X - Always in fixed positions */}
-        <div className="flex items-center justify-center min-h-[48px]">
+        <div className="flex items-center justify-center h-12">
           {/* Check OR Call button - Position 1 (mutually exclusive) */}
           <div className="w-32 h-12 flex items-center justify-center">
             {showCheck ? (
