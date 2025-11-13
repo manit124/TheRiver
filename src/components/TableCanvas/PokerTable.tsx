@@ -275,7 +275,7 @@ export function PokerTable({ tableState, playerId, onBackClick }: PokerTableProp
            {/* User's Hole Cards - Bottom Right, Face Up (visible to player) */}
            <div className="flex flex-col items-center gap-2 mb-12">
              {/* Current Bet Indicator for current player - above cards */}
-             {(currentPlayer?.currentBet || 0) > 0 && (
+             {currentPlayer && (currentPlayer.currentBet || 0) > 0 && (
                <motion.div
                  initial={{ scale: 0, opacity: 0 }}
                  animate={chipsAnimating.has(currentPlayer.id) ? {
