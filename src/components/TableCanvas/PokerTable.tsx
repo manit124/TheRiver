@@ -46,7 +46,7 @@ export function PokerTable({ tableState, playerId, onBackClick }: PokerTableProp
     const handleChipsToPot = (event: CustomEvent) => {
       const { playerBets } = event.detail;
       // Mark chips as animating
-      const animatingIds = new Set(playerBets.map((b: any) => b.playerId));
+      const animatingIds = new Set<string>(playerBets.map((b: any) => b.playerId as string));
       setChipsAnimating(animatingIds);
       
       // Clear animation state after animation completes
