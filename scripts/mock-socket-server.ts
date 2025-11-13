@@ -5,7 +5,10 @@ import { evaluateHand } from '../src/lib/pokerHands';
 
 const httpServer = createServer();
 const io = new Server(httpServer, {
-  cors: { origin: '*', methods: ['GET', 'POST'] },
+  cors: { 
+    origin: process.env.CORS_ORIGIN?.split(',') || '*', 
+    methods: ['GET', 'POST'] 
+  },
 });
 
 const rooms = new Map<string, TableState>();
@@ -786,6 +789,7 @@ io.on('connection', (socket) => {
 });
 
 const PORT = process.env.PORT || 5050;
-httpServer.listen(PORT, () => {
-  console.log(`✅ Server running on port ${PORT}`);
+httpServer.listen(PORT, '0.0.0.0', () => {
+  console.log(`🚀 Socket server running on port ${PORT}`);
+  console.log(`🌐 CORS origins: ${process.env.CORS_ORIGIN || '*'}`);
 });
