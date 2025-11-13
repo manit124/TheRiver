@@ -13,10 +13,23 @@ export function AnimatedPot({ value, className = '', emptyPot = false }: Animate
   const [displayValue, setDisplayValue] = useState(Math.round(value));
   const isEmptyingRef = useRef(false);
   const previousValueRef = useRef(Math.round(value));
+  const animationIntervalRef = useRef<NodeJS.Timeout | null>(null);
 
   useEffect(() => {
     const roundedValue = Math.round(value);
     const previousValue = previousValueRef.current;
+    
+    // If pot is 0 and we're not emptying, reset any ongoing animation
+    if (roundedValue === 0 && !emptyPot) {
+      if (animationIntervalRef.current) {
+        clearInterval(animationIntervalRef.current);
+        animationIntervalRef.current = null;
+      }
+      isEmptyingRef.current = false;
+      setDisplayValue(0);
+      previousValueRef.current = 0;
+      return;
+    }
     
     // Handle pot emptying animation (when winner is declared)
     if (emptyPot && roundedValue > 0 && !isEmptyingRef.current) {
@@ -35,13 +48,21 @@ export function AnimatedPot({ value, className = '', emptyPot = false }: Animate
         
         if (currentStep >= steps || newValue <= 0) {
           clearInterval(interval);
+          animationIntervalRef.current = null;
           setDisplayValue(0);
           isEmptyingRef.current = false;
           previousValueRef.current = 0;
         }
       }, stepDuration);
+      
+      animationIntervalRef.current = interval;
 
-      return () => clearInterval(interval);
+      return () => {
+        if (interval) {
+          clearInterval(interval);
+          animationIntervalRef.current = null;
+        }
+      };
     }
     
     // For normal increases, NumberFlow will handle animation
@@ -53,11 +74,13 @@ export function AnimatedPot({ value, className = '', emptyPot = false }: Animate
         previousValueRef.current = roundedValue;
       } else if (roundedValue < previousValue) {
         // Decreasing (shouldn't happen except when emptying)
+        // But if it does, update immediately
         setDisplayValue(roundedValue);
         previousValueRef.current = roundedValue;
       } else {
         // Same value, just sync
         setDisplayValue(roundedValue);
+        previousValueRef.current = roundedValue;
       }
     }
   }, [value, emptyPot]);

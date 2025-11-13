@@ -375,7 +375,7 @@ function startHand(state: TableState, roomCode: string) {
   }
 
   state.street = 'preflop';
-  state.pot = 0;
+  state.pot = 0; // Explicitly reset pot to 0 for new hand
   state.community = [];
   state.minBet = bb; // Big blind is minimum bet
   
