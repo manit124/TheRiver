@@ -178,11 +178,13 @@ export default function TablePage() {
             </p>
           </div>
         )}
-        <PokerTable 
-          tableState={currentState} 
-          playerId={currentPlayerId} 
-          onBackClick={() => setLeaveDialogOpen(true)}
-        />
+        {currentPlayerId && (
+          <PokerTable 
+            tableState={currentState} 
+            playerId={currentPlayerId} 
+            onBackClick={() => setLeaveDialogOpen(true)}
+          />
+        )}
       </div>
       <LeaveTableDialog open={leaveDialogOpen} onOpenChange={setLeaveDialogOpen} />
       <RebuyDialog 
