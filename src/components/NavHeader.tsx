@@ -191,13 +191,13 @@ const MonochromeNavBar: React.FC<MonochromeNavBarProps> = ({
       style={{ paddingTop: '1.5rem', paddingBottom: '1.5rem' }}
     >
       <div 
-        className="relative flex items-center gap-12 bg-black/40 backdrop-blur-xl border border-white/10 rounded-full shadow-2xl transition-opacity duration-300"
+        className="relative flex items-center gap-8 bg-black/40 backdrop-blur-xl border border-white/10 rounded-full shadow-2xl transition-opacity duration-300"
         style={{ 
-          paddingLeft: '4rem', 
-          paddingRight: '4rem',
-          paddingTop: '2rem',
-          paddingBottom: '2rem',
-          minHeight: '5.5rem',
+          paddingLeft: '2.5rem', 
+          paddingRight: '2.5rem',
+          paddingTop: '1rem',
+          paddingBottom: '1rem',
+          minHeight: '3.5rem',
           opacity: navOpacity
         }}
       >
@@ -213,7 +213,7 @@ const MonochromeNavBar: React.FC<MonochromeNavBarProps> = ({
               onMouseEnter={() => setHoveredTab(item.label)}
               onMouseLeave={() => setHoveredTab(null)}
               className={cn(
-                'relative cursor-pointer text-lg font-bold px-8 py-4 rounded-full transition-all duration-300 z-10',
+                'relative cursor-pointer text-lg font-bold px-6 py-3 rounded-full transition-all duration-300 z-10',
                 isActive
                   ? 'text-white'
                   : 'text-gray-400 hover:text-gray-200'
