@@ -32,7 +32,6 @@ export function CountdownTimer({ count }: CountdownTimerProps) {
             willChange
             value={count}
             isolate
-            continuous
             opacityTiming={{
               duration: 250,
               easing: 'ease-out',
