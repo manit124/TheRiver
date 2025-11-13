@@ -1,4 +1,4 @@
-# Poly-Poker
+# TheRiver
 
 A production-ready multi-variant poker game platform built with Next.js 14, TypeScript, and Socket.IO.
 
