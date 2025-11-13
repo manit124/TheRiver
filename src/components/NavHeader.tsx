@@ -5,6 +5,7 @@ import { motion } from 'framer-motion';
 import Link from 'next/link';
 import { usePathname, useRouter } from 'next/navigation';
 import { cn } from '@/lib/utils';
+import { AuthDialog } from '@/components/AuthDialog';
 
 interface NavItem {
   label: string;
@@ -31,6 +32,7 @@ const MonochromeNavBar: React.FC<MonochromeNavBarProps> = ({
   const [activeTab, setActiveTab] = useState<string>('HOME');
   const [navOpacity, setNavOpacity] = useState<number>(1);
   const [isLoginHovered, setIsLoginHovered] = useState<boolean>(false);
+  const [authDialogOpen, setAuthDialogOpen] = useState<boolean>(false);
 
   // Determine active tab based on pathname and scroll position
   React.useEffect(() => {
@@ -283,6 +285,7 @@ const MonochromeNavBar: React.FC<MonochromeNavBarProps> = ({
         
         {/* Login / Sign Up Button */}
         <button
+          onClick={() => setAuthDialogOpen(true)}
           onMouseEnter={() => setIsLoginHovered(true)}
           onMouseLeave={() => setIsLoginHovered(false)}
           className={cn(
@@ -314,6 +317,8 @@ const MonochromeNavBar: React.FC<MonochromeNavBarProps> = ({
           )}
         </button>
       </div>
+      
+      <AuthDialog open={authDialogOpen} onOpenChange={setAuthDialogOpen} />
     </nav>
   );
 };
@@ -321,8 +326,9 @@ const MonochromeNavBar: React.FC<MonochromeNavBarProps> = ({
 export default function NavHeader() {
   const pathname = usePathname();
   
-  // Only show nav bar on home page
-  if (pathname !== '/') {
+  // Only show nav bar on home, leaderboard, and shop pages
+  const allowedPaths = ['/', '/leaderboard', '/shop'];
+  if (!allowedPaths.includes(pathname)) {
     return null;
   }
   
