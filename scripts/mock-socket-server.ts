@@ -246,27 +246,23 @@ function moveToNextPlayer(state: TableState, roomCode: string) {
       });
     }
     
-    // Wait a moment, then collect bets to pot and update state
-    setTimeout(() => {
-      console.log(`🎯 Collecting bets to pot. Pot before: ${state.pot}`);
-      collectBetsToPot(state);
-      console.log(`🎯 Pot after collection: ${state.pot}`);
-      // Emit state again with updated pot and currentBet = 0
-      console.log(`📤 Emitting table:state with pot=${state.pot}`);
-      io.to(roomCode).emit('table:state', state);
-    }, 50); // Small delay to ensure frontend received the first state
+    // Collect bets to pot immediately
+    console.log(`🎯 Collecting bets to pot. Pot before: ${state.pot}`);
+    collectBetsToPot(state);
+    console.log(`🎯 Pot after collection: ${state.pot}`);
+    // Emit state with updated pot and currentBet = 0
+    console.log(`📤 Emitting table:state with pot=${state.pot}`);
+    io.to(roomCode).emit('table:state', state);
     
-    // Wait 200ms for animations, then move to next street
-    setTimeout(() => {
-      const allAllIn = playersInHand.every(p => p.stack === 0);
-      if (allAllIn && state.community.length < 5) {
-        revealAllCards(state, roomCode);
-        return;
-      }
-      
-      nextStreet(state, roomCode);
-      io.to(roomCode).emit('table:state', state);
-    }, 200);
+    // Move to next street immediately
+    const allAllIn = playersInHand.every(p => p.stack === 0);
+    if (allAllIn && state.community.length < 5) {
+      revealAllCards(state, roomCode);
+      return;
+    }
+    
+    nextStreet(state, roomCode);
+    io.to(roomCode).emit('table:state', state);
     return;
   }
   
@@ -288,20 +284,18 @@ function moveToNextPlayer(state: TableState, roomCode: string) {
         });
       }
       
-      setTimeout(() => {
-        collectBetsToPot(state);
-        io.to(roomCode).emit('table:state', state);
-      }, 50);
+      // Collect bets to pot immediately
+      collectBetsToPot(state);
+      io.to(roomCode).emit('table:state', state);
       
-      setTimeout(() => {
-        const allAllIn = playersInHand.every(p => p.stack === 0);
-        if (allAllIn && state.community.length < 5) {
-          revealAllCards(state, roomCode);
-          return;
-        }
-        nextStreet(state, roomCode);
-        io.to(roomCode).emit('table:state', state);
-      }, 200);
+      // Move to next street immediately
+      const allAllIn = playersInHand.every(p => p.stack === 0);
+      if (allAllIn && state.community.length < 5) {
+        revealAllCards(state, roomCode);
+        return;
+      }
+      nextStreet(state, roomCode);
+      io.to(roomCode).emit('table:state', state);
     }
     return;
   }
