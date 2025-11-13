@@ -2,6 +2,8 @@
 
 A production-ready multi-variant poker game platform built with Next.js 14, TypeScript, and Socket.IO.
 
+🌐 **Live Demo**: [https://the-river-tez5.vercel.app/](https://the-river-tez5.vercel.app/)
+
 ## Features
 
 - **Multiple Game Variants**: Texas Hold'em, Omaha, and Short Deck (coming soon)
@@ -70,7 +72,7 @@ Open [http://localhost:3000](http://localhost:3000) in your browser.
 ## Project Structure
 
 ```
-TheRiver/
+the-river/
 ├── src/
 │   ├── app/              # Next.js App Router pages
 │   │   ├── layout.tsx    # Root layout
@@ -140,6 +142,19 @@ To customize the server behavior, edit `scripts/mock-socket-server.ts`.
 - State management uses Zustand in `src/store/useTableStore.ts`
 - Socket.IO client wrapper is in `src/lib/socket.ts`
 
+## Deployment
+
+TheRiver is currently deployed and live at [https://the-river-tez5.vercel.app/](https://the-river-tez5.vercel.app/)
+
+### Frontend (Vercel)
+- **URL**: https://the-river-tez5.vercel.app/
+- Automatically deploys from the `main` branch
+- Environment variable `NEXT_PUBLIC_SOCKET_URL` points to the Railway backend
+
+### Backend (Railway)
+- Socket.IO server running on Railway
+- Handles real-time game state and player actions
+
 ## Building for Production
 
 ```bash
@@ -147,7 +162,7 @@ npm run build
 npm run start
 ```
 
-Make sure to set up a production Socket.IO server and update `NEXT_PUBLIC_SOCKET_URL` accordingly.
+For local development, make sure to set up a Socket.IO server and update `NEXT_PUBLIC_SOCKET_URL` accordingly.
 
 ## License
 
