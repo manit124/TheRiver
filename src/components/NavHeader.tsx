@@ -213,13 +213,13 @@ const MonochromeNavBar: React.FC<MonochromeNavBarProps> = ({
               onMouseEnter={() => setHoveredTab(item.label)}
               onMouseLeave={() => setHoveredTab(null)}
               className={cn(
-                'relative cursor-pointer text-lg font-bold px-6 py-3 rounded-full transition-all duration-300 z-10',
+                'relative cursor-pointer text-lg font-bold px-6 py-3 rounded-full transition-all duration-300 z-10 font-mono',
                 isActive
                   ? 'text-white'
                   : 'text-gray-400 hover:text-gray-200'
               )}
             >
-              <span className="relative z-20">{item.label}</span>
+              <span className="relative z-20 font-mono">{item.label}</span>
 
               {isActive && (
                 <motion.div
@@ -286,10 +286,10 @@ const MonochromeNavBar: React.FC<MonochromeNavBarProps> = ({
           onMouseEnter={() => setIsLoginHovered(true)}
           onMouseLeave={() => setIsLoginHovered(false)}
           className={cn(
-            'relative cursor-pointer text-lg font-bold px-8 py-4 rounded-full transition-all duration-300 z-10 text-gray-400 hover:text-gray-200'
+            'relative cursor-pointer text-lg font-bold px-8 py-4 rounded-full transition-all duration-300 z-10 text-gray-400 hover:text-gray-200 font-mono'
           )}
         >
-          <span className="relative z-20">Login / Sign Up</span>
+          <span className="relative z-20 font-mono">Login / Sign Up</span>
 
           {isLoginHovered && (
             <motion.div

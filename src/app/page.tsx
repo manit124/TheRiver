@@ -6,13 +6,26 @@ import { QuickPlayDialog } from '@/components/QuickPlayDialog';
 import { PokerModeGrid } from '@/components/PokerModeGrid';
 import { AnimatedText } from '@/components/AnimatedText';
 import { InteractiveHoverButton } from '@/components/ui/interactive-hover-button';
+import { TexasHoldemRulesDialog } from '@/components/TexasHoldemRulesDialog';
 import { motion } from 'framer-motion';
 import { useState } from 'react';
+import { Mode } from '@/data/modes';
 
 export default function Home() {
   const router = useRouter();
   const [joinDialogOpen, setJoinDialogOpen] = useState(false);
   const [quickPlayDialogOpen, setQuickPlayDialogOpen] = useState(false);
+  const [texasRulesDialogOpen, setTexasRulesDialogOpen] = useState(false);
+
+  const handleModeClick = (mode: Mode) => {
+    if (mode.id === 'texas') {
+      // Show rules dialog for Texas Hold'em
+      setTexasRulesDialogOpen(true);
+    } else if (mode.route) {
+      // Navigate normally for other modes
+      router.push(mode.route);
+    }
+  };
 
   return (
     <div className="relative min-h-screen">
@@ -32,7 +45,7 @@ export default function Home() {
 
         {/* Poker Mode Grid - Below the fold */}
         <div id="gamemodes" className="min-h-screen flex flex-col items-center justify-center px-1 py-3 relative">
-          <PokerModeGrid />
+          <PokerModeGrid onModeClick={handleModeClick} />
           
           {/* Action Buttons - Close to carousel */}
           <motion.div
@@ -58,6 +71,7 @@ export default function Home() {
 
         <JoinByCodeDialog open={joinDialogOpen} onOpenChange={setJoinDialogOpen} />
         <QuickPlayDialog open={quickPlayDialogOpen} onOpenChange={setQuickPlayDialogOpen} />
+        <TexasHoldemRulesDialog open={texasRulesDialogOpen} onOpenChange={setTexasRulesDialogOpen} />
     </div>
   );
 }

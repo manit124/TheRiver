@@ -8,11 +8,21 @@ import { Play, Clock } from "lucide-react";
 import { HyperText } from "@/components/HyperText";
 import { useEffect, useRef } from "react";
 
-export function PokerModeGrid() {
+interface PokerModeGridProps {
+  onModeClick?: (mode: Mode) => void;
+}
+
+export function PokerModeGrid({ onModeClick }: PokerModeGridProps) {
   const router = useRouter();
 
   const handleModeClick = (mode: Mode) => {
-    if (mode.status === "available" && mode.route) router.push(mode.route);
+    if (mode.status === "available") {
+      if (onModeClick) {
+        onModeClick(mode);
+      } else if (mode.route) {
+        router.push(mode.route);
+      }
+    }
   };
 
   return (
