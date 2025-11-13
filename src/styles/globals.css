@@ -1,0 +1,133 @@
+@import "tailwindcss";
+
+:root {
+  --bg: #0a0a0a;
+  --card: #ffffff;
+  --muted: #b3b3b3;
+  --accent: #ffd54a;
+  --background: var(--bg);
+  --foreground: #ededed;
+  --card-background: var(--card);
+  --card-foreground: #0a0a0a;
+  --primary: var(--accent);
+  --primary-foreground: #0a0a0a;
+  --secondary: #1a1a1a;
+  --secondary-foreground: #ededed;
+  --muted-background: var(--muted);
+  --muted-foreground: #0a0a0a;
+  --border: #2a2a2a;
+  --input: #2a2a2a;
+  --ring: var(--accent);
+  --popover: #1a1a1a;
+  --popover-foreground: #ededed;
+  --destructive: #ef4444;
+  --destructive-foreground: #ededed;
+}
+
+@theme inline {
+  --color-background: var(--background);
+  --color-foreground: var(--foreground);
+  --color-card: var(--card-background);
+  --color-card-foreground: var(--card-foreground);
+  --color-primary: var(--primary);
+  --color-primary-foreground: var(--primary-foreground);
+  --color-secondary: var(--secondary);
+  --color-secondary-foreground: var(--secondary-foreground);
+  --color-muted: var(--muted-background);
+  --color-muted-foreground: var(--muted-foreground);
+  --color-border: var(--border);
+  --color-input: var(--input);
+  --color-ring: var(--ring);
+  --color-popover: var(--popover);
+  --color-popover-foreground: var(--popover-foreground);
+  --color-destructive: var(--destructive);
+  --color-destructive-foreground: var(--destructive-foreground);
+}
+
+body {
+  background: var(--bg);
+  color: var(--foreground);
+  font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', 'Roboto', 'Oxygen', 'Ubuntu', 'Cantarell', 'Fira Sans', 'Droid Sans', 'Helvetica Neue', sans-serif;
+  -webkit-font-smoothing: antialiased;
+  -moz-osx-font-smoothing: grayscale;
+}
+
+/* Clean dark background */
+.poker-table {
+  position: relative;
+}
+
+/* Card shadow for overlapping effect */
+.card-shadow {
+  box-shadow: 0 2px 8px rgba(0, 0, 0, 0.3), 0 4px 16px rgba(0, 0, 0, 0.2);
+}
+
+/* Overlapping card effect */
+.card-overlap {
+  margin-left: -12px;
+}
+
+.card-overlap:first-child {
+  margin-left: 0;
+}
+
+* {
+  margin: 0;
+  padding: 0;
+  box-sizing: border-box;
+}
+
+/* Hide scrollbar for webkit browsers */
+.hide-scrollbar::-webkit-scrollbar {
+  display: none;
+}
+
+/* Hide scrollbar for IE, Edge and Firefox */
+.hide-scrollbar {
+  -ms-overflow-style: none;
+  scrollbar-width: none;
+}
+
+/* Gradient Button Styles */
+.gradient-button {
+  background: linear-gradient(135deg, #6366f1 0%, #8b5cf6 50%, #a855f7 100%) !important;
+  border: none !important;
+  position: relative;
+  overflow: hidden;
+  transition: all 0.3s ease;
+  box-shadow: 0 4px 15px rgba(139, 92, 246, 0.3);
+  cursor: pointer;
+}
+
+.gradient-button:hover {
+  background: linear-gradient(135deg, #818cf8 0%, #a78bfa 50%, #c084fc 100%) !important;
+  box-shadow: 0 6px 20px rgba(139, 92, 246, 0.5);
+  transform: translateY(-2px);
+}
+
+.gradient-button:active {
+  transform: translateY(0);
+  box-shadow: 0 2px 10px rgba(139, 92, 246, 0.4);
+}
+
+.gradient-button-variant {
+  background: linear-gradient(135deg, #3b82f6 0%, #6366f1 50%, #8b5cf6 100%) !important;
+}
+
+.gradient-button-variant:hover {
+  background: linear-gradient(135deg, #60a5fa 0%, #818cf8 50%, #a78bfa 100%) !important;
+}
+
+/* RetroGrid Animation */
+@keyframes grid {
+  0% {
+    transform: translateY(0);
+  }
+  100% {
+    transform: translateY(60px);
+  }
+}
+
+.animate-grid {
+  animation: grid 5s linear infinite;
+}
