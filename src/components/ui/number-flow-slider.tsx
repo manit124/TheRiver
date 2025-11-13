@@ -23,7 +23,6 @@ export default function NumberFlowSlider({ value, className, ...props }: RadixSl
 						willChange
 						value={value[0]}
 						isolate
-						continuous
 						opacityTiming={{
 							duration: 250,
 							easing: 'ease-out'
