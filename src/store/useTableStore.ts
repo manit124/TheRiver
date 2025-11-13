@@ -206,8 +206,9 @@ export const useTableStore = create<TableStore>((set, get) => {
           return;
         }
         
+        const history = data.history; // Store in const after type guard
         const currentState = get().state;
-        const winnerIds = data.history.winningPlayerIds;
+        const winnerIds = history.winningPlayerIds;
         const isSplit = winnerIds.length > 1;
         
         const winnerNames = winnerIds.length > 0
@@ -218,10 +219,10 @@ export const useTableStore = create<TableStore>((set, get) => {
           ? winnerNames.join(' & ')
           : (winnerNames[0] || 'Unknown');
         
-        const potAmount = data.history.pot;
+        const potAmount = history.pot;
         
         set((state) => ({
-          handHistory: [...state.handHistory, data.history],
+          handHistory: [...state.handHistory, history],
           winnerInfo: { 
             winnerName, 
             potAmount, 

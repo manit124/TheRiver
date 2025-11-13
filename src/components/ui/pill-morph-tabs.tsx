@@ -150,7 +150,7 @@ export default function PillMorphTabs({
                 <TabsTrigger
                   key={it.value}
                   value={it.value}
-                  ref={(el: HTMLButtonElement | null) => (triggerRefs.current[it.value] = el)}
+                  ref={(el: HTMLButtonElement | null) => { triggerRefs.current[it.value] = el; }}
                   className={cn(
                     "relative z-10 px-5 py-2 rounded-full text-sm font-medium transition-colors bg-transparent",
                     "data-[state=active]:bg-transparent",
