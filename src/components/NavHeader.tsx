@@ -157,9 +157,10 @@ const MonochromeNavBar: React.FC<MonochromeNavBarProps> = ({
       if (pathname === '/') {
         const gamemodesSection = document.getElementById('gamemodes');
         if (gamemodesSection) {
-          // Account for fixed nav bar height (approximately 120px from top)
-          const navOffset = 120;
-          const targetY = gamemodesSection.offsetTop - navOffset;
+          // Account for fixed nav bar height + extra scroll down
+          const navOffset = 70;
+          const extraScroll = 0; // Additional scroll down
+          const targetY = gamemodesSection.offsetTop - navOffset - extraScroll;
           smoothScrollTo(targetY, 1500);
         }
       } else {
@@ -169,7 +170,8 @@ const MonochromeNavBar: React.FC<MonochromeNavBarProps> = ({
           const gamemodesSection = document.getElementById('gamemodes');
           if (gamemodesSection) {
             const navOffset = 120;
-            const targetY = gamemodesSection.offsetTop - navOffset;
+            const extraScroll = 80; // Additional scroll down
+            const targetY = gamemodesSection.offsetTop - navOffset - extraScroll;
             smoothScrollTo(targetY, 1500);
           }
         }, 300);
@@ -211,7 +213,7 @@ const MonochromeNavBar: React.FC<MonochromeNavBarProps> = ({
               onMouseEnter={() => setHoveredTab(item.label)}
               onMouseLeave={() => setHoveredTab(null)}
               className={cn(
-                'relative cursor-pointer text-xl font-bold px-8 py-4 rounded-full transition-all duration-300 z-10',
+                'relative cursor-pointer text-lg font-bold px-8 py-4 rounded-full transition-all duration-300 z-10',
                 isActive
                   ? 'text-white'
                   : 'text-gray-400 hover:text-gray-200'
@@ -284,7 +286,7 @@ const MonochromeNavBar: React.FC<MonochromeNavBarProps> = ({
           onMouseEnter={() => setIsLoginHovered(true)}
           onMouseLeave={() => setIsLoginHovered(false)}
           className={cn(
-            'relative cursor-pointer text-xl font-bold px-8 py-4 rounded-full transition-all duration-300 z-10 text-gray-400 hover:text-gray-200'
+            'relative cursor-pointer text-lg font-bold px-8 py-4 rounded-full transition-all duration-300 z-10 text-gray-400 hover:text-gray-200'
           )}
         >
           <span className="relative z-20">Login / Sign Up</span>
@@ -317,6 +319,13 @@ const MonochromeNavBar: React.FC<MonochromeNavBarProps> = ({
 };
 
 export default function NavHeader() {
+  const pathname = usePathname();
+  
+  // Only show nav bar on home page
+  if (pathname !== '/') {
+    return null;
+  }
+  
   return (
     <>
       <MonochromeNavBar />
