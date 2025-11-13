@@ -788,7 +788,7 @@ io.on('connection', (socket) => {
   });
 });
 
-const PORT = process.env.PORT || 5050;
+const PORT = process.env.PORT ? parseInt(process.env.PORT, 10) : 5050;
 httpServer.listen(PORT, '0.0.0.0', () => {
   console.log(`🚀 Socket server running on port ${PORT}`);
   console.log(`🌐 CORS origins: ${process.env.CORS_ORIGIN || '*'}`);
