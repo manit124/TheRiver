@@ -88,7 +88,7 @@ Replace `your_project_url_here` and `your_anon_key_here` with the values from St
 1. In Supabase dashboard, go to **Settings** → **Auth** → **URL Configuration**
 2. Add your site URLs:
    - **Site URL**: `http://localhost:3000` (for development)
-   - **Redirect URLs**: 
+   - **Redirect URLs**:
      - `http://localhost:3000/auth/callback`
      - `https://your-production-domain.com/auth/callback` (for production)
 
@@ -107,11 +107,12 @@ Replace `your_project_url_here` and `your_anon_key_here` with the values from St
 ✅ User profiles with username, email, profile pic, and chips  
 ✅ Automatic profile creation on signup  
 ✅ Row Level Security for data protection  
-✅ Starting chips: 10,000  
+✅ Starting chips: 10,000
 
 ## Database Schema
 
 The `profiles` table stores:
+
 - `id`: UUID (linked to auth.users)
 - `email`: User's email address
 - `username`: Unique username
@@ -126,4 +127,3 @@ The `profiles` table stores:
 - Implement chip transactions
 - Add user leaderboard queries
 - Create user settings page
-
