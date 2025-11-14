@@ -6,6 +6,7 @@ import Link from 'next/link';
 import { usePathname, useRouter } from 'next/navigation';
 import { cn } from '@/lib/utils';
 import { AuthDialog } from '@/components/AuthDialog';
+import { PlayerStatsDialog } from '@/components/PlayerStatsDialog';
 import { createClient } from '@/lib/supabase/client';
 
 interface NavItem {
@@ -37,6 +38,7 @@ const MonochromeNavBar: React.FC<MonochromeNavBarProps> = ({
   const [user, setUser] = useState<any>(null);
   const [profilePic, setProfilePic] = useState<string | null>(null);
   const [loading, setLoading] = useState(true);
+  const [statsDialogOpen, setStatsDialogOpen] = useState(false);
 
   // Check authentication state and fetch profile
   useEffect(() => {
@@ -362,18 +364,13 @@ const MonochromeNavBar: React.FC<MonochromeNavBarProps> = ({
         {/* User Profile Picture or Login / Sign Up Button */}
         {!loading && user && profilePic ? (
           <button
-            onClick={async () => {
-              const supabase = createClient();
-              await supabase.auth.signOut();
-              setUser(null);
-              setProfilePic(null);
-            }}
+            onClick={() => setStatsDialogOpen(true)}
             onMouseEnter={() => setIsLoginHovered(true)}
             onMouseLeave={() => setIsLoginHovered(false)}
             className={cn(
               'relative cursor-pointer text-2xl px-4 py-2 rounded-full transition-all duration-300 z-10 hover:bg-white/10 font-mono'
             )}
-            title="Sign Out"
+            title="View Stats"
           >
             <span className="relative z-20">{profilePic}</span>
 
@@ -436,6 +433,15 @@ const MonochromeNavBar: React.FC<MonochromeNavBarProps> = ({
       </div>
       
       <AuthDialog open={authDialogOpen} onOpenChange={setAuthDialogOpen} />
+      
+      {/* Player Stats Dialog */}
+      {user && (
+        <PlayerStatsDialog
+          open={statsDialogOpen}
+          onOpenChange={setStatsDialogOpen}
+          userId={user.id}
+        />
+      )}
     </nav>
   );
 };
