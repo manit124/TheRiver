@@ -47,7 +47,19 @@ Replace `your_project_url_here` and `your_anon_key_here` with the values from St
    - Row Level Security policies
    - Triggers for automatic profile creation
 
-## Step 5: Enable OAuth Providers
+## Step 5: Disable Email Confirmation (Optional)
+
+If you want users to be able to sign in immediately without email confirmation:
+
+1. In your Supabase dashboard, go to **Authentication** → **Providers**
+2. Click on **Email** provider
+3. Scroll down to **Email Auth** settings
+4. Toggle off **"Confirm email"** or **"Enable email confirmations"**
+5. Click **Save**
+
+**Note:** Disabling email confirmation means users can sign in immediately after signup without verifying their email. This is useful for development but less secure for production.
+
+## Step 6: Enable OAuth Providers
 
 ### GitHub OAuth
 
