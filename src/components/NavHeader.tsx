@@ -48,14 +48,21 @@ const MonochromeNavBar: React.FC<MonochromeNavBarProps> = ({
         if (authUser) {
           setUser(authUser);
           // Fetch profile picture
-          const { data: profile } = await supabase
+          const { data: profile, error: profileError } = await supabase
             .from('profiles')
             .select('profile_pic')
             .eq('id', authUser.id)
             .single();
           
+          if (profileError) {
+            console.error('Error fetching profile:', profileError);
+          }
+          
           if (profile?.profile_pic) {
             setProfilePic(profile.profile_pic);
+          } else {
+            // Profile exists but no profile_pic set yet
+            setProfilePic(null);
           }
         } else {
           setUser(null);
@@ -81,9 +88,14 @@ const MonochromeNavBar: React.FC<MonochromeNavBarProps> = ({
           .select('profile_pic')
           .eq('id', session.user.id)
           .single()
-          .then(({ data: profile }) => {
+          .then(({ data: profile, error: profileError }) => {
+            if (profileError) {
+              console.error('Error fetching profile in auth listener:', profileError);
+            }
             if (profile?.profile_pic) {
               setProfilePic(profile.profile_pic);
+            } else {
+              setProfilePic(null);
             }
           });
       } else {

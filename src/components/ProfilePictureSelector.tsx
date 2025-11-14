@@ -62,22 +62,57 @@ export function ProfilePictureSelector({ open, onOpenChange, userId, onComplete 
         throw new Error('Invalid avatar selection');
       }
 
+      // First, check if profile exists and wait a bit if it doesn't (trigger might still be creating it)
+      let profileExists = false;
+      let retries = 0;
+      while (!profileExists && retries < 5) {
+        const { data: existingProfile } = await supabase
+          .from('profiles')
+          .select('id')
+          .eq('id', userId)
+          .single();
+        
+        if (existingProfile) {
+          profileExists = true;
+        } else {
+          // Wait 200ms before retrying
+          await new Promise(resolve => setTimeout(resolve, 200));
+          retries++;
+        }
+      }
+
+      if (!profileExists) {
+        throw new Error('Profile not found. Please try again.');
+      }
+
       // Update the profile with the selected avatar emoji
-      const { error: updateError } = await supabase
+      const { data: updateData, error: updateError } = await supabase
         .from('profiles')
         .update({ profile_pic: avatar.emoji })
-        .eq('id', userId);
+        .eq('id', userId)
+        .select()
+        .single();
 
-      if (updateError) throw updateError;
+      if (updateError) {
+        console.error('Error updating profile picture:', updateError);
+        throw updateError;
+      }
+
+      // Verify the update was successful
+      if (!updateData || updateData.profile_pic !== avatar.emoji) {
+        throw new Error('Failed to save profile picture. Please try again.');
+      }
+
+      console.log('Profile picture saved successfully:', updateData.profile_pic);
 
       // Close dialogs first
       onOpenChange(false);
       
-      // Trigger a page refresh to update nav bar with new profile picture
-      // Small delay to ensure database update is complete
+      // Wait a bit longer to ensure database update is fully committed
+      // Then trigger a page refresh to update nav bar with new profile picture
       setTimeout(() => {
         window.location.reload();
-      }, 100);
+      }, 500);
     } catch (err: any) {
       setError(err.message || 'Failed to save profile picture');
     } finally {
