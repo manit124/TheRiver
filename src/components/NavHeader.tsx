@@ -1,11 +1,12 @@
 'use client';
 
-import React, { useState } from 'react';
+import React, { useState, useEffect } from 'react';
 import { motion } from 'framer-motion';
 import Link from 'next/link';
 import { usePathname, useRouter } from 'next/navigation';
 import { cn } from '@/lib/utils';
 import { AuthDialog } from '@/components/AuthDialog';
+import { createClient } from '@/lib/supabase/client';
 
 interface NavItem {
   label: string;
@@ -33,6 +34,69 @@ const MonochromeNavBar: React.FC<MonochromeNavBarProps> = ({
   const [navOpacity, setNavOpacity] = useState<number>(1);
   const [isLoginHovered, setIsLoginHovered] = useState<boolean>(false);
   const [authDialogOpen, setAuthDialogOpen] = useState<boolean>(false);
+  const [user, setUser] = useState<any>(null);
+  const [profilePic, setProfilePic] = useState<string | null>(null);
+  const [loading, setLoading] = useState(true);
+
+  // Check authentication state and fetch profile
+  useEffect(() => {
+    const checkAuth = async () => {
+      try {
+        const supabase = createClient();
+        const { data: { user: authUser } } = await supabase.auth.getUser();
+        
+        if (authUser) {
+          setUser(authUser);
+          // Fetch profile picture
+          const { data: profile } = await supabase
+            .from('profiles')
+            .select('profile_pic')
+            .eq('id', authUser.id)
+            .single();
+          
+          if (profile?.profile_pic) {
+            setProfilePic(profile.profile_pic);
+          }
+        } else {
+          setUser(null);
+          setProfilePic(null);
+        }
+      } catch (error) {
+        console.error('Error checking auth:', error);
+      } finally {
+        setLoading(false);
+      }
+    };
+
+    checkAuth();
+
+    // Listen for auth changes
+    const supabase = createClient();
+    const { data: { subscription } } = supabase.auth.onAuthStateChange((_event, session) => {
+      if (session?.user) {
+        setUser(session.user);
+        // Fetch profile picture
+        supabase
+          .from('profiles')
+          .select('profile_pic')
+          .eq('id', session.user.id)
+          .single()
+          .then(({ data: profile }) => {
+            if (profile?.profile_pic) {
+              setProfilePic(profile.profile_pic);
+            }
+          });
+      } else {
+        setUser(null);
+        setProfilePic(null);
+      }
+      setLoading(false);
+    });
+
+    return () => {
+      subscription.unsubscribe();
+    };
+  }, []);
 
   // Determine active tab based on pathname and scroll position
   React.useEffect(() => {
@@ -283,39 +347,80 @@ const MonochromeNavBar: React.FC<MonochromeNavBarProps> = ({
         {/* Separator */}
         <div className="h-8 w-px bg-white/20 mx-2" />
         
-        {/* Login / Sign Up Button */}
-        <button
-          onClick={() => setAuthDialogOpen(true)}
-          onMouseEnter={() => setIsLoginHovered(true)}
-          onMouseLeave={() => setIsLoginHovered(false)}
-          className={cn(
-            'relative cursor-pointer text-lg font-bold px-8 py-4 rounded-full transition-all duration-300 z-10 text-gray-400 hover:text-gray-200 font-mono'
-          )}
-        >
-          <span className="relative z-20 font-mono">Login / Sign Up</span>
+        {/* User Profile Picture or Login / Sign Up Button */}
+        {!loading && user && profilePic ? (
+          <button
+            onClick={async () => {
+              const supabase = createClient();
+              await supabase.auth.signOut();
+              setUser(null);
+              setProfilePic(null);
+            }}
+            onMouseEnter={() => setIsLoginHovered(true)}
+            onMouseLeave={() => setIsLoginHovered(false)}
+            className={cn(
+              'relative cursor-pointer text-2xl px-4 py-2 rounded-full transition-all duration-300 z-10 hover:bg-white/10 font-mono'
+            )}
+            title="Sign Out"
+          >
+            <span className="relative z-20">{profilePic}</span>
 
-          {isLoginHovered && (
-            <motion.div
-              initial={{ opacity: 0, scale: 0.8 }}
-              animate={{ opacity: 1, scale: 1 }}
-              exit={{ opacity: 0, scale: 0.8 }}
-              transition={{ duration: 0.2 }}
-              className="absolute -inset-1 bg-white/8 rounded-full -z-10"
-            />
-          )}
+            {isLoginHovered && (
+              <motion.div
+                initial={{ opacity: 0, scale: 0.8 }}
+                animate={{ opacity: 1, scale: 1 }}
+                exit={{ opacity: 0, scale: 0.8 }}
+                transition={{ duration: 0.2 }}
+                className="absolute -inset-1 bg-white/8 rounded-full -z-10"
+              />
+            )}
 
-          {isLoginHovered && (
-            <motion.div
-              initial={{ opacity: 0 }}
-              animate={{ opacity: 1 }}
-              exit={{ opacity: 0 }}
-              className="absolute inset-0 rounded-full -z-20"
-            >
-              <div className="absolute -inset-2 bg-gradient-radial from-white/15 to-transparent rounded-full blur-xl" />
-              <div className="absolute inset-0 bg-gradient-radial from-white/8 to-transparent rounded-full blur-md" />
-            </motion.div>
-          )}
-        </button>
+            {isLoginHovered && (
+              <motion.div
+                initial={{ opacity: 0 }}
+                animate={{ opacity: 1 }}
+                exit={{ opacity: 0 }}
+                className="absolute inset-0 rounded-full -z-20"
+              >
+                <div className="absolute -inset-2 bg-gradient-radial from-white/15 to-transparent rounded-full blur-xl" />
+                <div className="absolute inset-0 bg-gradient-radial from-white/8 to-transparent rounded-full blur-md" />
+              </motion.div>
+            )}
+          </button>
+        ) : (
+          <button
+            onClick={() => setAuthDialogOpen(true)}
+            onMouseEnter={() => setIsLoginHovered(true)}
+            onMouseLeave={() => setIsLoginHovered(false)}
+            className={cn(
+              'relative cursor-pointer text-lg font-bold px-8 py-4 rounded-full transition-all duration-300 z-10 text-gray-400 hover:text-gray-200 font-mono'
+            )}
+          >
+            <span className="relative z-20 font-mono">Login / Sign Up</span>
+
+            {isLoginHovered && (
+              <motion.div
+                initial={{ opacity: 0, scale: 0.8 }}
+                animate={{ opacity: 1, scale: 1 }}
+                exit={{ opacity: 0, scale: 0.8 }}
+                transition={{ duration: 0.2 }}
+                className="absolute -inset-1 bg-white/8 rounded-full -z-10"
+              />
+            )}
+
+            {isLoginHovered && (
+              <motion.div
+                initial={{ opacity: 0 }}
+                animate={{ opacity: 1 }}
+                exit={{ opacity: 0 }}
+                className="absolute inset-0 rounded-full -z-20"
+              >
+                <div className="absolute -inset-2 bg-gradient-radial from-white/15 to-transparent rounded-full blur-xl" />
+                <div className="absolute inset-0 bg-gradient-radial from-white/8 to-transparent rounded-full blur-md" />
+              </motion.div>
+            )}
+          </button>
+        )}
       </div>
       
       <AuthDialog open={authDialogOpen} onOpenChange={setAuthDialogOpen} />

@@ -1,6 +1,6 @@
 'use client';
 
-import { useState, JSX, SVGProps } from 'react';
+import { useState, useEffect, JSX, SVGProps } from 'react';
 import { motion, AnimatePresence } from 'framer-motion';
 import { Dialog, DialogContent, DialogTitle } from '@/components/ui/dialog';
 import { Button } from '@/components/ui/button';
@@ -15,6 +15,7 @@ import { Label } from '@/components/ui/label';
 import { Eye, EyeOff, Mail } from 'lucide-react';
 import { createClient } from '@/lib/supabase/client';
 import { InteractiveHoverButton } from '@/components/ui/interactive-hover-button';
+import { ProfilePictureSelector } from '@/components/ProfilePictureSelector';
 
 const Logo = (props: JSX.IntrinsicAttributes & SVGProps<SVGSVGElement>) => (
   <svg
@@ -48,6 +49,20 @@ export function AuthDialog({ open, onOpenChange }: AuthDialogProps) {
   // Options: 'max-w-xs' (smallest), 'max-w-sm', 'max-w-md' (default), 'max-w-lg', 'max-w-xl', 'max-w-2xl' (largest)
   const dialogSize = 'max-w-md';
   const [isSignUp, setIsSignUp] = useState(false);
+
+  // Reset to sign in mode when dialog opens
+  useEffect(() => {
+    if (open) {
+      setIsSignUp(false);
+      setError(null);
+      setEmail('');
+      setPassword('');
+      setUsername('');
+      setFirstName('');
+      setLastName('');
+      setPasswordStrength(null);
+    }
+  }, [open]);
   const [showPassword, setShowPassword] = useState(false);
   const [firstName, setFirstName] = useState('');
   const [lastName, setLastName] = useState('');
@@ -57,6 +72,8 @@ export function AuthDialog({ open, onOpenChange }: AuthDialogProps) {
   const [passwordStrength, setPasswordStrength] = useState<'weak' | 'medium' | 'strong' | null>(null);
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState<string | null>(null);
+  const [showPfpSelector, setShowPfpSelector] = useState(false);
+  const [newUserId, setNewUserId] = useState<string | null>(null);
 
   // Check if Supabase is configured
   const isSupabaseConfigured = 
@@ -119,8 +136,12 @@ export function AuthDialog({ open, onOpenChange }: AuthDialogProps) {
         // Profile will be created automatically by the database trigger
         // No need to manually insert - the trigger handles it
 
-        alert('Check your email to confirm your account!');
-        onOpenChange(false);
+        if (data.user) {
+          // Show profile picture selector
+          setNewUserId(data.user.id);
+          setShowPfpSelector(true);
+          // Don't close the auth dialog yet, wait for pfp selection
+        }
         // Reset form
         setEmail('');
         setPassword('');
@@ -169,30 +190,34 @@ export function AuthDialog({ open, onOpenChange }: AuthDialogProps) {
 
   return (
     <Dialog open={open} onOpenChange={onOpenChange}>
-      <DialogContent className={`${dialogSize} bg-transparent border-none shadow-none p-0`}>
+      <DialogContent className={`${dialogSize} bg-gradient-to-br from-black/80 via-[#0a0a0a]/90 to-black/80 backdrop-blur-xl border border-white/10 shadow-[0_0_40px_rgba(0,0,0,0.5)] rounded-lg p-0`}>
         <DialogTitle className="sr-only">
           {isSignUp ? 'Sign Up' : 'Sign In'}
         </DialogTitle>
         
         <div className="flex items-center justify-center">
           <div className={`w-full ${dialogSize}`}>
-            <Card className="border-none shadow-lg pb-0 bg-gradient-to-br from-[#0a0a0a] via-[#1a1a1a] to-[#0a0a0a] border-white/10">
-              <CardHeader className="flex flex-col items-center space-y-1.5 pb-4 pt-6">
-                <Logo className="w-12 h-12 text-white" />
-                <div className="space-y-0.5 flex flex-col items-center">
-                  <h2 className="text-2xl font-semibold text-white font-mono">
-                    {isSignUp ? 'Create an account' : 'Sign in'}
+            <Card className="border-none shadow-none pb-0 bg-transparent backdrop-blur-sm">
+              <CardHeader className="flex flex-col items-center space-y-3 pb-6 pt-8 px-8">
+                <div className="relative">
+                  <Logo className="w-14 h-14 text-white drop-shadow-[0_0_10px_rgba(255,255,255,0.3)]" />
+                  <div className="absolute inset-0 bg-white/20 blur-xl rounded-full -z-10" />
+                </div>
+                <div className="space-y-1 flex flex-col items-center">
+                  <h2 className="text-3xl font-bold text-white font-mono tracking-tight">
+                    {isSignUp ? 'Create an account' : 'Sign in to your account'}
                   </h2>
-                  <p className="text-white/60 font-mono">
-                    {isSignUp ? 'Welcome! Create an account to get started.' : 'Welcome back! Sign in to continue.'}
+                  <div className="w-16 h-px bg-gradient-to-r from-transparent via-white/30 to-transparent" />
+                  <p className="text-white/70 font-mono text-sm mt-2">
+                    {isSignUp ? 'Welcome! Create an account to get started.' : 'Welcome back! Enter your details to continue.'}
                   </p>
                 </div>
               </CardHeader>
 
-              <CardContent className="space-y-6 px-8">
+              <CardContent className="space-y-6 px-8 pb-6">
                 {/* Configuration Warning */}
                 {!isSupabaseConfigured && (
-                  <div className="p-3 bg-yellow-500/10 border border-yellow-500/20 rounded-lg text-yellow-400 text-sm font-mono">
+                  <div className="p-3 bg-white/5 border border-white/10 rounded-lg text-white/70 text-sm font-mono backdrop-blur-sm">
                     Supabase is not configured. Please add NEXT_PUBLIC_SUPABASE_URL and NEXT_PUBLIC_SUPABASE_ANON_KEY to your .env.local file.
                   </div>
                 )}
@@ -209,7 +234,7 @@ export function AuthDialog({ open, onOpenChange }: AuthDialogProps) {
                   <Button
                     onClick={() => handleOAuth('google')}
                     disabled={loading}
-                    className="w-full bg-white/10 hover:bg-white/20 border border-white/20 text-white font-mono"
+                    className="w-full bg-white/5 hover:bg-white/10 border border-white/10 text-white font-mono transition-all duration-300 hover:border-white/20 hover:shadow-[0_0_20px_rgba(255,255,255,0.05)] backdrop-blur-sm focus:outline-none focus:ring-0 focus-visible:ring-0"
                   >
                     <Mail className="w-4 h-4 mr-2" />
                     Continue with Google
@@ -237,7 +262,7 @@ export function AuthDialog({ open, onOpenChange }: AuthDialogProps) {
                           value={firstName}
                           onChange={(e) => setFirstName(e.target.value)}
                           required={isSignUp}
-                          className="bg-white/5 border-white/10 text-white placeholder:text-white/30 focus-visible:ring-white/20 font-mono"
+                          className="bg-white/5 border-white/10 text-white placeholder:text-white/30 focus-visible:ring-white/10 focus-visible:ring-1 focus-visible:outline-none backdrop-blur-sm font-mono"
                         />
                       </div>
                       <div className="space-y-2">
@@ -247,7 +272,7 @@ export function AuthDialog({ open, onOpenChange }: AuthDialogProps) {
                           value={lastName}
                           onChange={(e) => setLastName(e.target.value)}
                           required={isSignUp}
-                          className="bg-white/5 border-white/10 text-white placeholder:text-white/30 focus-visible:ring-white/20 font-mono"
+                          className="bg-white/5 border-white/10 text-white placeholder:text-white/30 focus-visible:ring-white/10 focus-visible:ring-1 focus-visible:outline-none backdrop-blur-sm font-mono"
                         />
                       </div>
                     </div>
@@ -287,7 +312,7 @@ export function AuthDialog({ open, onOpenChange }: AuthDialogProps) {
                         value={password}
                         onChange={(e) => handlePasswordChange(e.target.value)}
                         required
-                        className="bg-white/5 border-white/10 text-white placeholder:text-white/30 focus-visible:ring-white/20 font-mono pr-10"
+                        className="bg-white/5 border-white/10 text-white placeholder:text-white/30 focus-visible:ring-white/10 focus-visible:ring-1 focus-visible:outline-none backdrop-blur-sm font-mono pr-10"
                       />
                       <Button
                         type="button"
@@ -378,7 +403,7 @@ export function AuthDialog({ open, onOpenChange }: AuthDialogProps) {
                 </form>
               </CardContent>
 
-              <CardFooter className="flex justify-center border-t border-white/10 !py-4">
+              <CardFooter className="flex justify-center border-t border-white/10 !py-6 px-8">
                 <p className="text-center text-sm text-white/60 font-mono">
                   {isSignUp ? (
                     <>
@@ -389,21 +414,21 @@ export function AuthDialog({ open, onOpenChange }: AuthDialogProps) {
                           setIsSignUp(false);
                           setError(null);
                         }}
-                        className="text-white hover:underline font-mono"
+                        className="text-white hover:text-white/80 hover:underline font-mono transition-colors duration-200"
                       >
                         Sign in
                       </button>
                     </>
                   ) : (
                     <>
-                      Don't have an account?{' '}
+                      Don&apos;t have an account?{' '}
                       <button
                         type="button"
                         onClick={() => {
                           setIsSignUp(true);
                           setError(null);
                         }}
-                        className="text-white hover:underline font-mono"
+                        className="text-white hover:text-white/80 hover:underline font-mono transition-colors duration-200"
                       >
                         Sign up
                       </button>
@@ -415,6 +440,29 @@ export function AuthDialog({ open, onOpenChange }: AuthDialogProps) {
           </div>
         </div>
       </DialogContent>
+
+      {/* Profile Picture Selector */}
+      {newUserId && (
+        <ProfilePictureSelector
+          open={showPfpSelector}
+          onOpenChange={(open) => {
+            setShowPfpSelector(open);
+            if (!open) {
+              // Close both dialogs after pfp selection
+              onOpenChange(false);
+              setNewUserId(null);
+            }
+          }}
+          userId={newUserId}
+          onComplete={() => {
+            // Account created and pfp selected - close dialogs
+            // Nav bar will automatically update via auth state listener
+            setShowPfpSelector(false);
+            onOpenChange(false);
+            setNewUserId(null);
+          }}
+        />
+      )}
     </Dialog>
   );
 }
