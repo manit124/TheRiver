@@ -106,7 +106,7 @@ export function PlayerStatsDialog({ open, onOpenChange, userId }: PlayerStatsDia
                   {/* Poker Chip Image */}
                   <div className="relative w-12 h-12 flex items-center justify-center">
                     <img
-                      src="/poker-chip.png.png"
+                      src="/poker-chip.png"
                       alt="Poker Chip"
                       className="w-full h-full object-contain"
                       onError={(e) => {
