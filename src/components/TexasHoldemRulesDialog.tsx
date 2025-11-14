@@ -12,6 +12,14 @@ interface TexasHoldemRulesDialogProps {
 export function TexasHoldemRulesDialog({ open, onOpenChange }: TexasHoldemRulesDialogProps) {
   const router = useRouter();
 
+  // Dialog size reducers - adjust these values to change dialog size
+  // Width options: 'max-w-xs', 'max-w-sm', 'max-w-md', 'max-w-lg' (default), 'max-w-xl', 'max-w-2xl'
+  // Width percentage: 'w-[50vw]', 'w-[60vw]' (default), 'w-[70vw]', 'w-[80vw]'
+  // Height percentage: 'h-[40vh]', 'h-[45vh]' (default), 'h-[50vh]', 'h-[60vh]'
+  const dialogMaxWidth = 'max-w-lg';
+  const dialogWidth = 'w-[60vw]';
+  const dialogHeight = 'h-[37vh]';
+
   const handleJoin = () => {
     onOpenChange(false);
     router.push('/lobby?game=texas');
@@ -20,7 +28,7 @@ export function TexasHoldemRulesDialog({ open, onOpenChange }: TexasHoldemRulesD
   return (
     <Dialog open={open} onOpenChange={onOpenChange}>
       <DialogContent 
-        className="max-w-lg w-[60vw] max-h-lg h-[45vh] overflow-y-auto bg-gradient-to-br from-[#0a0a0a] via-[#1a1a1a] to-[#0a0a0a] border-white/10 shadow-[0_0_30px_rgba(255,255,255,0.05)] rounded-lg"
+        className={`${dialogMaxWidth} ${dialogWidth} ${dialogHeight} overflow-y-auto bg-gradient-to-br from-[#0a0a0a] via-[#1a1a1a] to-[#0a0a0a] border-white/10 shadow-[0_0_30px_rgba(255,255,255,0.05)] rounded-lg`}
       >
         <DialogTitle className="sr-only">Texas Hold&apos;em Rules</DialogTitle>
         <div className="p-2 font-mono">

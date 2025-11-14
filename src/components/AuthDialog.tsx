@@ -44,6 +44,9 @@ interface AuthDialogProps {
 }
 
 export function AuthDialog({ open, onOpenChange }: AuthDialogProps) {
+  // Dialog size reducer - adjust this value to change dialog size
+  // Options: 'max-w-xs' (smallest), 'max-w-sm', 'max-w-md' (default), 'max-w-lg', 'max-w-xl', 'max-w-2xl' (largest)
+  const dialogSize = 'max-w-md';
   const [isSignUp, setIsSignUp] = useState(false);
   const [showPassword, setShowPassword] = useState(false);
   const [firstName, setFirstName] = useState('');
@@ -166,13 +169,13 @@ export function AuthDialog({ open, onOpenChange }: AuthDialogProps) {
 
   return (
     <Dialog open={open} onOpenChange={onOpenChange}>
-      <DialogContent className="max-w-md bg-transparent border-none shadow-none p-0">
+      <DialogContent className={`${dialogSize} bg-transparent border-none shadow-none p-0`}>
         <DialogTitle className="sr-only">
           {isSignUp ? 'Sign Up' : 'Sign In'}
         </DialogTitle>
         
         <div className="flex items-center justify-center">
-          <div className="w-full max-w-md">
+          <div className={`w-full ${dialogSize}`}>
             <Card className="border-none shadow-lg pb-0 bg-gradient-to-br from-[#0a0a0a] via-[#1a1a1a] to-[#0a0a0a] border-white/10">
               <CardHeader className="flex flex-col items-center space-y-1.5 pb-4 pt-6">
                 <Logo className="w-12 h-12 text-white" />
