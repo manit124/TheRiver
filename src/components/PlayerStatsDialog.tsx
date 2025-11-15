@@ -103,24 +103,8 @@ export function PlayerStatsDialog({ open, onOpenChange, userId }: PlayerStatsDia
                   <h4 className="text-white/80 font-mono text-sm uppercase tracking-wider">
                     Total Chips
                   </h4>
-                  {/* Poker Chip Image */}
-                  <div className="relative w-12 h-12 flex items-center justify-center">
-                    <img
-                      src="/poker-chip.png"
-                      alt="Poker Chip"
-                      className="w-full h-full object-contain"
-                      onError={(e) => {
-                        // Fallback to emoji if image not found
-                        e.currentTarget.style.display = 'none';
-                        const fallback = e.currentTarget.nextElementSibling as HTMLElement;
-                        if (fallback) fallback.style.display = 'flex';
-                      }}
-                    />
-                    {/* Fallback emoji - shown if image fails to load */}
-                    <span className="absolute inset-0 flex items-center justify-center text-2xl pointer-events-none" style={{ display: 'none' }}>
-                      🪙
-                    </span>
-                  </div>
+                  {/* Coin Emoji */}
+                  <div className="text-3xl">🪙</div>
                 </div>
                 <div className="text-4xl font-bold text-white font-mono">
                   {stats.chips.toLocaleString()}

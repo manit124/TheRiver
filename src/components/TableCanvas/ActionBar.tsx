@@ -21,7 +21,27 @@ export function ActionBar({ tableState, playerId }: ActionBarProps) {
   );
   const [betAmount, setBetAmount] = useState(tableState.minBet || 0);
   const [showRaiseSlider, setShowRaiseSlider] = useState(false);
+  const [showBetSlider, setShowBetSlider] = useState(false);
   const [raiseAmount, setRaiseAmount] = useState((tableState.minBet || 0) * 2);
+
+  // Slider horizontal position mover - adjust horizontal position of slider bar
+  // Positive values move right (forward), negative values move left (backward)
+  // Options: 'translateX(0px)', 'translateX(50px)', 'translateX(100px)', 'translateX(152px)' (default), 'translateX(200px)', 'translateX(250px)'
+  const sliderPositionMover = 'translateX(10px)';
+  
+  // Bet slider horizontal position mover - adjust horizontal position of bet slider bar (appears after clicking Bet button)
+  // Should match raise slider position to be above Bet button (middle button)
+  const betSliderPositionMover = 'translateX(-10px)';
+  
+  // Bet number display position mover - adjust position of the bet amount number above the slider thumb
+  // This controls the NumberFlow display position for bet slider
+  // Options: 'translateX(0px)', 'translateX(10px)', 'translateX(-10px)', etc.
+  const betNumberPositionMover = 'translateX(0px)';
+  
+  // Slider vertical position mover - adjust vertical position of slider bar
+  // Positive values move down, negative values move up
+  // Options: 'translateY(0px)', 'translateY(-20px)', 'translateY(-40px)', 'translateY(-60px)', 'translateY(20px)', 'translateY(40px)'
+  const sliderVerticalMover = 'translateY(0px)';
 
   const isMyTurn = tableState.toActPlayerId === playerId;
   const hasFolded = currentPlayer?.hasFolded || false;
@@ -42,6 +62,7 @@ export function ActionBar({ tableState, playerId }: ActionBarProps) {
   useEffect(() => {
     setBetAmount(tableState.minBet || 0);
     setShowRaiseSlider(false);
+    setShowBetSlider(false);
   }, [tableState.minBet, tableState.toActPlayerId]);
 
   const handleFold = () => {
@@ -67,7 +88,17 @@ export function ActionBar({ tableState, playerId }: ActionBarProps) {
 
   const handleBet = () => {
     if (!isMyTurn || !currentPlayer) return;
-    sendAction({ type: 'BET', amount: betAmount });
+    if (showBetSlider) {
+      sendAction({ type: 'BET', amount: betAmount });
+      setShowBetSlider(false);
+    } else {
+      setShowBetSlider(true);
+      setBetAmount(Math.max(tableState.minBet || 0, tableState.bigBlind || 10));
+    }
+  };
+
+  const handleBetCancel = () => {
+    setShowBetSlider(false);
   };
 
   const handleRaise = () => {
@@ -136,11 +167,11 @@ export function ActionBar({ tableState, playerId }: ActionBarProps) {
 
   // Always render buttons - never return null or different layouts
   return (
-    <div className="flex flex-col gap-3 min-h-[120px] relative" style={{ transform: 'translateX(-30px)' }}>
-      {/* Raise Slider Bar - Positioned absolutely above buttons */}
-      {showRaiseSlider && currentPlayer && canRaise && (
-        <div className="absolute bottom-16 left-1/2 -translate-x-1/2 flex flex-col items-center gap-3 z-10">
-          <div className="flex items-center gap-4" style={{ width: '408px' }}>
+    <div className="flex flex-col gap-3 min-h-[120px]" style={{ transform: 'translateX(-30px)' }}>
+      {/* Raise Slider Bar - Above buttons in normal flow */}
+      {showRaiseSlider && currentPlayer && (
+        <div className="flex flex-col items-center gap-3 pb-8" style={{ transform: `${sliderPositionMover} ${sliderVerticalMover}` }}>
+          <div className="flex items-center gap-4 relative" style={{ width: '200px' }}>
             <NumberFlowSlider
               value={[raiseAmount]}
               onValueChange={([value]) => {
@@ -160,11 +191,10 @@ export function ActionBar({ tableState, playerId }: ActionBarProps) {
         </div>
       )}
 
-      {/* Betting Slider Bar - Positioned absolutely above buttons */}
-      {canBet && !showRaiseSlider && (
-        <div className="absolute bottom-16 left-1/2 -translate-x-1/2 flex items-center justify-center gap-3 z-10">
-          <span className="text-white text-sm font-mono">↑ {betAmount}</span>
-          <div className="w-[408px]">
+      {/* Betting Slider Bar - Above buttons in normal flow (only shows after clicking Bet button) */}
+      {showBetSlider && !showRaiseSlider && currentPlayer && (
+        <div className="flex flex-col items-center gap-3 pb-8" style={{ transform: `${betSliderPositionMover} ${sliderVerticalMover}` }}>
+          <div className="flex items-center gap-4 relative" style={{ width: '200px' }}>
             <Slider
               value={[betAmount]}
               onValueChange={([value]) => {
@@ -183,7 +213,7 @@ export function ActionBar({ tableState, playerId }: ActionBarProps) {
         </div>
       )}
 
-      {/* Action Buttons Container - Fixed position at bottom */}
+      {/* Action Buttons Container - Below sliders */}
       <div className="flex flex-col gap-2">
         {/* Action Buttons - Only 3 buttons: Check/Call, Raise, X - Always in fixed positions */}
         <div className="flex items-center justify-center h-12">
@@ -227,11 +257,13 @@ export function ActionBar({ tableState, playerId }: ActionBarProps) {
                 disabled={!canBet}
                 className={`w-32 h-12 text-sm font-semibold rounded-xl bg-gradient-to-br from-[#0a0a0a] via-[#1a1a1a] to-[#0a0a0a] border font-mono flex items-center justify-center transition-all ${
                   canBet
-                    ? 'border-white/20 text-white hover:border-[#ffd54a]/50 hover:shadow-[0_0_20px_rgba(255,213,74,0.2)] cursor-pointer' 
+                    ? showBetSlider 
+                      ? 'border-[#ffd54a]/50 shadow-[0_0_20px_rgba(255,213,74,0.2)] text-white hover:border-[#ffd54a]/50 cursor-pointer' 
+                      : 'border-white/20 text-white hover:border-[#ffd54a]/50 hover:shadow-[0_0_20px_rgba(255,213,74,0.2)] cursor-pointer'
                     : 'border-white/5 text-white/20 cursor-not-allowed opacity-30'
                 }`}
               >
-                Bet
+                {showBetSlider ? `Bet ${betAmount}` : 'Bet'}
               </button>
             ) : showRaise ? (
               <button
@@ -259,15 +291,15 @@ export function ActionBar({ tableState, playerId }: ActionBarProps) {
           {/* Fold button (X) - Position 3 */}
           <div className="w-32 h-12 flex items-center justify-center">
             <button
-              onClick={showRaiseSlider ? handleRaiseCancel : handleFold}
-              disabled={!canFold && !showRaiseSlider}
+              onClick={showRaiseSlider ? handleRaiseCancel : showBetSlider ? handleBetCancel : handleFold}
+              disabled={!canFold && !showRaiseSlider && !showBetSlider}
               className={`w-32 h-12 text-sm font-semibold rounded-xl bg-gradient-to-br from-[#0a0a0a] via-[#1a1a1a] to-[#0a0a0a] border font-mono flex items-center justify-center transition-all ${
-                (canFold || showRaiseSlider) && isMyTurn
+                (canFold || showRaiseSlider || showBetSlider) && isMyTurn
                   ? 'border-red-500/50 text-red-400 hover:border-red-500 hover:bg-red-500/10 hover:shadow-[0_0_20px_rgba(239,68,68,0.3)] cursor-pointer' 
                   : 'border-red-500/20 text-red-400/20 cursor-not-allowed opacity-30'
               }`}
             >
-              {showRaiseSlider ? 'Cancel' : 'X'}
+              {showRaiseSlider || showBetSlider ? 'Cancel' : 'X'}
             </button>
           </div>
         </div>

@@ -70,6 +70,7 @@ function ModeCard({
   onClick: () => void;
 }) {
   const isAvailable = mode.status === "available";
+  const isProduction = mode.status === "production";
   const cardRef = useRef<HTMLDivElement>(null);
 
   useEffect(() => {
@@ -152,7 +153,7 @@ function ModeCard({
         whileInView={{ opacity: 1, y: 0 }}
         viewport={{ once: true, margin: "-100px" }}
         transition={{ delay: index * 0.1, duration: 0.5 }}
-        onClick={onClick}
+        onClick={isAvailable ? onClick : undefined}
         className={cn(
           "mode-card-glow group relative overflow-hidden rounded-xl border transition-all duration-300",
           "bg-gradient-to-br from-[#0a0a0a] via-[#1a1a1a] to-[#0a0a0a]",
@@ -187,6 +188,11 @@ function ModeCard({
                 <Play className="w-3 h-3" />
                 <span>Available</span>
               </>
+            ) : isProduction ? (
+              <>
+                <Clock className="w-3 h-3" />
+                <span>In Production</span>
+              </>
             ) : (
               <>
                 <Clock className="w-3 h-3" />
@@ -213,9 +219,13 @@ function ModeCard({
                 →
               </motion.div>
             </div>
-          ) : (
+          ) : isProduction ? (
             <div className="flex items-center gap-2 text-xs text-white/50">
               <span>In Production</span>
+            </div>
+          ) : (
+            <div className="flex items-center gap-2 text-xs text-white/50">
+              <span>Coming Soon</span>
             </div>
           )}
         </div>

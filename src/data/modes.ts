@@ -3,7 +3,7 @@ export type Mode = {
   name: string;
   subtitle: string;
   route?: string; // defined if playable now
-  status: 'available' | 'comingSoon';
+  status: 'available' | 'comingSoon' | 'production';
   variant?: 'texas' | 'omaha' | 'shortdeck' | 'razz' | '5card' | 'pineapple';
 };
 
@@ -21,7 +21,7 @@ export const MODES: Mode[] = [
     name: 'Omaha',
     subtitle: 'Four-card action',
     route: '/lobby?game=omaha',
-    status: 'available',
+    status: 'production',
     variant: 'omaha',
   },
   {

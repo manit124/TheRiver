@@ -1,6 +1,6 @@
 'use client';
 
-import { useState } from 'react';
+import { useState, useEffect } from 'react';
 import { useRouter } from 'next/navigation';
 import { Dialog, DialogContent, DialogDescription, DialogHeader, DialogTitle } from '@/components/ui/dialog';
 import { Card, CardContent, CardHeader } from '@/components/ui/card';
@@ -8,6 +8,7 @@ import { Input } from '@/components/ui/input';
 import { Label } from '@radix-ui/react-label';
 import { HyperText } from '@/components/HyperText';
 import { InteractiveHoverButton } from '@/components/ui/interactive-hover-button';
+import { createClient } from '@/lib/supabase/client';
 
 interface JoinByCodeDialogProps {
   open: boolean;
@@ -16,13 +17,62 @@ interface JoinByCodeDialogProps {
 
 export function JoinByCodeDialog({ open, onOpenChange }: JoinByCodeDialogProps) {
   const [code, setCode] = useState('');
+  const [userChips, setUserChips] = useState<number>(0);
+  const [loading, setLoading] = useState(false);
+  const [error, setError] = useState<string | null>(null);
   const router = useRouter();
 
-  const handleJoin = () => {
-    if (code.length === 6) {
+  // Fetch user chips when dialog opens
+  useEffect(() => {
+    if (open) {
+      const fetchChips = async () => {
+        try {
+          const supabase = createClient();
+          const { data: { user } } = await supabase.auth.getUser();
+          if (user) {
+            const { data: profile } = await supabase
+              .from('profiles')
+              .select('chips')
+              .eq('id', user.id)
+              .single();
+            if (profile?.chips !== undefined) {
+              setUserChips(profile.chips);
+            }
+          }
+        } catch (error) {
+          console.error('Error fetching chips:', error);
+        }
+      };
+      fetchChips();
+      setError(null);
+    }
+  }, [open]);
+
+  const handleJoin = async () => {
+    if (code.length !== 6) return;
+
+    setLoading(true);
+    setError(null);
+
+    try {
+      // Check if user is logged in
+      const supabase = createClient();
+      const { data: { user } } = await supabase.auth.getUser();
+      
+      if (!user) {
+        setError('Please log in to join a table');
+        setLoading(false);
+        return;
+      }
+
+      // Navigate to table - chip validation will happen on the table page
       router.push(`/table/${code.toUpperCase()}`);
       onOpenChange(false);
       setCode('');
+    } catch (err: any) {
+      setError(err.message || 'Failed to join table');
+    } finally {
+      setLoading(false);
     }
   };
 
@@ -45,6 +95,14 @@ export function JoinByCodeDialog({ open, onOpenChange }: JoinByCodeDialogProps) 
             </CardHeader>
           </DialogHeader>
           <CardContent className="space-y-6">
+            {userChips > 0 && (
+              <div className="text-center">
+                <p className="text-white/60 font-mono text-sm">
+                  Your Chips: <span className="text-white font-semibold">{userChips.toLocaleString()}</span>
+                </p>
+              </div>
+            )}
+            
             <div className="space-y-2">
               <Label htmlFor="code" className="text-white/90">Room Code</Label>
               <Input
@@ -58,11 +116,17 @@ export function JoinByCodeDialog({ open, onOpenChange }: JoinByCodeDialogProps) 
               />
             </div>
 
+            {error && (
+              <div className="p-3 bg-red-500/10 border border-red-500/20 rounded-lg text-red-400 text-sm font-mono text-center">
+                {error}
+              </div>
+            )}
+
             <InteractiveHoverButton
               onClick={handleJoin}
               text="Join Table"
               className="w-full"
-              disabled={code.length !== 6}
+              disabled={code.length !== 6 || loading}
             />
           </CardContent>
         </Card>

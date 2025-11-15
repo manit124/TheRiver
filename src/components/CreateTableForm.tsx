@@ -133,19 +133,6 @@ export function CreateTableForm() {
           />
         </div>
 
-        <div className="flex items-center space-x-2">
-          <input
-            type="checkbox"
-            id="isPrivate"
-            checked={settings.isPrivate}
-            onChange={(e) => setSettings({ ...settings, isPrivate: e.target.checked })}
-            className="h-4 w-4 rounded border-white/20 bg-white/5 accent-white/20 cursor-pointer"
-          />
-          <Label htmlFor="isPrivate" className="cursor-pointer text-white/90">
-            Private Table
-          </Label>
-        </div>
-
         <div className="relative z-10">
           <InteractiveHoverButton
             onClick={handleCreate}

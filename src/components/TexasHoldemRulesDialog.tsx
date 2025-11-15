@@ -18,10 +18,11 @@ export function TexasHoldemRulesDialog({ open, onOpenChange }: TexasHoldemRulesD
   // Height percentage: 'h-[40vh]', 'h-[45vh]' (default), 'h-[50vh]', 'h-[60vh]'
   const dialogMaxWidth = 'max-w-lg';
   const dialogWidth = 'w-[60vw]';
-  const dialogHeight = 'h-[37vh]';
+  const dialogHeight = 'h-[45vh]';
 
   const handleJoin = () => {
     onOpenChange(false);
+    // Navigate to fixed tables lobby
     router.push('/lobby?game=texas');
   };
 

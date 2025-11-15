@@ -55,6 +55,7 @@ export function AuthDialog({ open, onOpenChange }: AuthDialogProps) {
     if (open) {
       setIsSignUp(false);
       setError(null);
+      setUsernameError(null);
       setEmail('');
       setPassword('');
       setUsername('');
@@ -63,6 +64,7 @@ export function AuthDialog({ open, onOpenChange }: AuthDialogProps) {
       setPasswordStrength(null);
     }
   }, [open]);
+  
   const [showPassword, setShowPassword] = useState(false);
   const [firstName, setFirstName] = useState('');
   const [lastName, setLastName] = useState('');
@@ -72,6 +74,43 @@ export function AuthDialog({ open, onOpenChange }: AuthDialogProps) {
   const [passwordStrength, setPasswordStrength] = useState<'weak' | 'medium' | 'strong' | null>(null);
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState<string | null>(null);
+  const [usernameError, setUsernameError] = useState<string | null>(null);
+
+  // Check username availability when username changes (debounced)
+  useEffect(() => {
+    if (!isSignUp || !username.trim()) {
+      setUsernameError(null);
+      return;
+    }
+
+    const checkUsername = async () => {
+      try {
+        const supabase = getSupabaseClient();
+        const { data, error: checkError } = await supabase
+          .from('profiles')
+          .select('username')
+          .eq('username', username.trim())
+          .maybeSingle(); // Use maybeSingle instead of single to avoid errors when no row found
+
+        if (checkError) {
+          console.error('Error checking username:', checkError);
+          return;
+        }
+
+        if (data) {
+          setUsernameError('Username already exists');
+        } else {
+          setUsernameError(null);
+        }
+      } catch (err) {
+        // Ignore errors for now
+        console.error('Error in username check:', err);
+      }
+    };
+
+    const timeoutId = setTimeout(checkUsername, 500); // Debounce 500ms
+    return () => clearTimeout(timeoutId);
+  }, [username, isSignUp]);
   const [showPfpSelector, setShowPfpSelector] = useState(false);
   const [newUserId, setNewUserId] = useState<string | null>(null);
 
@@ -112,13 +151,32 @@ export function AuthDialog({ open, onOpenChange }: AuthDialogProps) {
     e.preventDefault();
     setLoading(true);
     setError(null);
-
+    setUsernameError(null);
 
     try {
       const supabase = getSupabaseClient();
       
       if (isSignUp) {
-        // Sign up
+        // Check if username is already taken (double-check before sign-up)
+        if (username.trim()) {
+          const { data: existingUsername, error: usernameCheckError } = await supabase
+            .from('profiles')
+            .select('username')
+            .eq('username', username.trim())
+            .maybeSingle();
+
+          if (usernameCheckError && usernameCheckError.code !== 'PGRST116') {
+            console.error('Error checking username:', usernameCheckError);
+          }
+
+          if (existingUsername) {
+            setUsernameError('Username already exists');
+            setLoading(false);
+            return;
+          }
+        }
+
+        // Attempt sign-up - Supabase will return an error if email already exists
         const { data, error: signUpError } = await supabase.auth.signUp({
           email,
           password,
@@ -131,16 +189,80 @@ export function AuthDialog({ open, onOpenChange }: AuthDialogProps) {
           },
         });
 
-        if (signUpError) throw signUpError;
+        if (signUpError) {
+          // Check if error is about email already existing
+          const errorMsg = signUpError.message.toLowerCase();
+          if (errorMsg.includes('already registered') || 
+              errorMsg.includes('already exists') || 
+              errorMsg.includes('user already registered') ||
+              errorMsg.includes('email address is already registered')) {
+            setError('Account already exists. Please sign in instead.');
+            // Switch to login mode after a short delay
+            setTimeout(() => {
+              setIsSignUp(false);
+              setError(null);
+            }, 2000);
+            setLoading(false);
+            return;
+          }
+          
+          // Check if error is about username constraint violation
+          if (errorMsg.includes('username') && errorMsg.includes('unique') || 
+              errorMsg.includes('duplicate key') ||
+              errorMsg.includes('violates unique constraint')) {
+            setUsernameError('Username already exists');
+            setLoading(false);
+            return;
+          }
+          
+          throw signUpError;
+        }
 
         // Profile will be created automatically by the database trigger
-        // No need to manually insert - the trigger handles it
-
+        // Wait a bit for the trigger to create the profile, then check for username conflicts
         if (data.user) {
-          // Show profile picture selector
-          setNewUserId(data.user.id);
-          setShowPfpSelector(true);
-          // Don't close the auth dialog yet, wait for pfp selection
+          // Wait for profile to be created by trigger
+          await new Promise(resolve => setTimeout(resolve, 500));
+          
+          // Check if profile was created successfully or if there was a username conflict
+          const { data: profile, error: profileError } = await supabase
+            .from('profiles')
+            .select('username')
+            .eq('id', data.user.id)
+            .maybeSingle();
+
+          // If profile doesn't exist, it might be a username conflict from the trigger
+          if (!profile) {
+            // Check if username exists in profiles (might be a conflict)
+            const { data: existingUsername } = await supabase
+              .from('profiles')
+              .select('username')
+              .eq('username', username.trim())
+              .maybeSingle();
+            
+            if (existingUsername) {
+              setUsernameError('Username already exists');
+              setLoading(false);
+              return;
+            }
+            
+            // Profile wasn't created for some other reason
+            setError('Failed to create profile. Please try again.');
+            setLoading(false);
+            return;
+          }
+
+          // If profile exists, proceed with pfp selector
+          if (profile) {
+            setNewUserId(data.user.id);
+            setShowPfpSelector(true);
+            // Don't close the auth dialog yet, wait for pfp selection
+          } else {
+            // Profile wasn't created, show error
+            setError('Failed to create profile. Please try again.');
+            setLoading(false);
+            return;
+          }
         }
         // Reset form
         setEmail('');
@@ -162,7 +284,17 @@ export function AuthDialog({ open, onOpenChange }: AuthDialogProps) {
         setPassword('');
       }
     } catch (err: any) {
-      setError(err.message || 'An error occurred');
+      const errorMsg = err.message?.toLowerCase() || '';
+      
+      // Check for username-related errors
+      if (errorMsg.includes('username') && (errorMsg.includes('unique') || errorMsg.includes('duplicate') || errorMsg.includes('already exists'))) {
+        setUsernameError('Username already exists');
+      } else if (errorMsg.includes('database error') || errorMsg.includes('saving new user')) {
+        // This might be a username conflict from the trigger
+        setUsernameError('Username already exists');
+      } else {
+        setError(err.message || 'An error occurred');
+      }
     } finally {
       setLoading(false);
     }
@@ -286,8 +418,13 @@ export function AuthDialog({ open, onOpenChange }: AuthDialogProps) {
                         value={username}
                         onChange={(e) => setUsername(e.target.value)}
                         required={isSignUp}
-                        className="bg-white/5 border-white/10 text-white placeholder:text-white/30 focus-visible:ring-white/20 font-mono"
+                        className={`bg-white/5 border-white/10 text-white placeholder:text-white/30 focus-visible:ring-white/20 font-mono ${
+                          usernameError ? 'border-red-500/50 focus-visible:ring-red-500/50' : ''
+                        }`}
                       />
+                      {usernameError && (
+                        <p className="text-red-400 text-xs font-mono">{usernameError}</p>
+                      )}
                     </div>
                   )}
 
