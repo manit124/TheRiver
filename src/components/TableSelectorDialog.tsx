@@ -245,7 +245,7 @@ export function TableSelectorDialog({
           <div className="text-center space-y-6">
             <div>
               <div className="text-white/50 text-xs font-mono mb-1 uppercase tracking-wider">Stakes</div>
-              <div className="text-3xl font-bold text-green-400 font-mono">{selectedTable.stakes}</div>
+              <div className={`text-3xl font-bold font-mono ${canJoin ? 'text-green-400' : 'text-red-400'}`}>{selectedTable.stakes}</div>
             </div>
             <div>
               <div className="text-white/50 text-xs font-mono mb-1 uppercase tracking-wider">Buy-in</div>

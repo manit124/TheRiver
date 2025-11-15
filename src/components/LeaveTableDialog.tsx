@@ -8,7 +8,7 @@ import { InteractiveHoverButton } from '@/components/ui/interactive-hover-button
 import { Button } from '@/components/ui/button';
 import { useTableStore } from '@/store/useTableStore';
 import { createClient } from '@/lib/supabase/client';
-import { useState } from 'react';
+import { useState, Suspense } from 'react';
 
 interface LeaveTableDialogProps {
   open: boolean;
@@ -16,7 +16,7 @@ interface LeaveTableDialogProps {
   userId?: string;
 }
 
-export function LeaveTableDialog({ open, onOpenChange, userId }: LeaveTableDialogProps) {
+function LeaveTableDialogContent({ open, onOpenChange, userId }: LeaveTableDialogProps) {
   const router = useRouter();
   const searchParams = useSearchParams();
   const disconnect = useTableStore((state) => state.disconnect);
@@ -130,6 +130,14 @@ export function LeaveTableDialog({ open, onOpenChange, userId }: LeaveTableDialo
         </Card>
       </DialogContent>
     </Dialog>
+  );
+}
+
+export function LeaveTableDialog({ open, onOpenChange, userId }: LeaveTableDialogProps) {
+  return (
+    <Suspense fallback={null}>
+      <LeaveTableDialogContent open={open} onOpenChange={onOpenChange} userId={userId} />
+    </Suspense>
   );
 }
 

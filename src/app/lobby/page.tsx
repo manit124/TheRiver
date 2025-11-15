@@ -1,7 +1,7 @@
 'use client';
 
 import { useSearchParams, useRouter } from 'next/navigation';
-import { useState, useEffect } from 'react';
+import { useState, useEffect, Suspense } from 'react';
 import { createClient } from '@/lib/supabase/client';
 import { AuthDialog } from '@/components/AuthDialog';
 
@@ -49,7 +49,7 @@ const FIXED_TABLES: FixedTable[] = [
   },
 ];
 
-export default function LobbyPage() {
+function LobbyPageContent() {
   const searchParams = useSearchParams();
   const router = useRouter();
   const gameType = searchParams.get('game') || 'texas';
@@ -197,5 +197,17 @@ export default function LobbyPage() {
 
       <AuthDialog open={authDialogOpen} onOpenChange={setAuthDialogOpen} />
     </div>
+  );
+}
+
+export default function LobbyPage() {
+  return (
+    <Suspense fallback={
+      <div className="min-h-screen text-white flex items-center justify-center">
+        <div className="text-white/60 font-mono">Loading...</div>
+      </div>
+    }>
+      <LobbyPageContent />
+    </Suspense>
   );
 }

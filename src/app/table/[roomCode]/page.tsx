@@ -1,6 +1,6 @@
 'use client';
 
-import { useEffect, useState } from 'react';
+import { useEffect, useState, Suspense } from 'react';
 import { useParams, useRouter, useSearchParams } from 'next/navigation';
 import { useTableStore } from '@/store/useTableStore';
 import { PokerTable } from '@/components/TableCanvas/PokerTable';
@@ -22,7 +22,7 @@ import { AuthDialog } from '@/components/AuthDialog';
 import { Dialog, DialogContent, DialogTitle, DialogDescription } from '@/components/ui/dialog';
 
 
-export default function TablePage() {
+function TablePageContent() {
   const params = useParams();
   const router = useRouter();
   const searchParams = useSearchParams();
@@ -431,6 +431,18 @@ export default function TablePage() {
         <CountdownTimer key={countdown} count={countdown} />
       )}
     </div>
+  );
+}
+
+export default function TablePage() {
+  return (
+    <Suspense fallback={
+      <div className="min-h-screen text-white flex items-center justify-center">
+        <div className="text-white/60 font-mono">Loading...</div>
+      </div>
+    }>
+      <TablePageContent />
+    </Suspense>
   );
 }
 
