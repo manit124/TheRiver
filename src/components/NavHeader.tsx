@@ -368,11 +368,19 @@ const MonochromeNavBar: React.FC<MonochromeNavBarProps> = ({
             onMouseEnter={() => setIsLoginHovered(true)}
             onMouseLeave={() => setIsLoginHovered(false)}
             className={cn(
-              'relative cursor-pointer text-2xl px-4 py-2 rounded-full transition-all duration-300 z-10 hover:bg-white/10 font-mono'
+              'relative cursor-pointer text-2xl px-4 py-2 rounded-full transition-all duration-300 z-10 hover:bg-white/10 font-mono flex items-center justify-center'
             )}
             title="View Stats"
           >
-            <span className="relative z-20">{profilePic}</span>
+            {profilePic.startsWith('/') ? (
+              <img 
+                src={profilePic} 
+                alt="Profile" 
+                className="relative z-20 w-8 h-8 rounded-full object-cover"
+              />
+            ) : (
+              <span className="relative z-20">{profilePic}</span>
+            )}
 
             {isLoginHovered && (
               <motion.div

@@ -13,7 +13,7 @@ DROP FUNCTION IF EXISTS public.update_updated_at_column();
 
 -- Create profiles table for user data
 CREATE TABLE IF NOT EXISTS profiles (
-  id UUID REFERENCES auth.users(id) PRIMARY KEY,
+  id UUID REFERENCES auth.users(id) ON DELETE CASCADE PRIMARY KEY,
   email TEXT NOT NULL,
   username TEXT UNIQUE NOT NULL,
   profile_pic TEXT,

@@ -4,6 +4,7 @@ import { useState } from 'react';
 import { Dialog, DialogContent, DialogTitle } from '@/components/ui/dialog';
 import { InteractiveHoverButton } from '@/components/ui/interactive-hover-button';
 import { createClient } from '@/lib/supabase/client';
+import Image from 'next/image';
 
 interface ProfilePictureSelectorProps {
   open: boolean;
@@ -12,20 +13,11 @@ interface ProfilePictureSelectorProps {
   onComplete: () => void;
 }
 
-// Profile picture options (non-card avatars only)
+// Profile picture options - images only
 const POKER_AVATARS = [
-  { id: 'poker-chip', name: 'Poker Chip', emoji: '🪙' },
-  { id: 'dice', name: 'Dice', emoji: '🎲' },
-  { id: 'trophy', name: 'Trophy', emoji: '🏆' },
-  { id: 'crown', name: 'Crown', emoji: '👑' },
-  { id: 'star', name: 'Star', emoji: '⭐' },
-  { id: 'fire', name: 'Fire', emoji: '🔥' },
-  { id: 'diamond', name: 'Diamond', emoji: '💎' },
-  { id: 'rocket', name: 'Rocket', emoji: '🚀' },
-  { id: 'trophy-gold', name: 'Gold Trophy', emoji: '🥇' },
-  { id: 'medal', name: 'Medal', emoji: '🎖️' },
-  { id: 'gem', name: 'Gem', emoji: '💠' },
-  { id: 'sparkles', name: 'Sparkles', emoji: '✨' },
+  { id: 'profile1', name: 'Profile 1', type: 'image' as const, image: '/profile1.png' },
+  { id: 'profile2', name: 'Profile 2', type: 'image' as const, image: '/profile2.png' },
+  { id: 'profile3', name: 'Profile 3', type: 'image' as const, image: '/profile3.png' },
 ];
 
 export function ProfilePictureSelector({ open, onOpenChange, userId, onComplete }: ProfilePictureSelectorProps) {
@@ -37,12 +29,23 @@ export function ProfilePictureSelector({ open, onOpenChange, userId, onComplete 
   const dialogWidth = 'w-[50vw]';
   const dialogHeight = 'h-[49vh]';
   
+  // Profile pictures position mover - adjust vertical position of profile picture grid
+  // Positive values move down, negative values move up
+  // Options: 'translateY(0px)', 'translateY(10px)', 'translateY(20px)', 'translateY(30px)', 'translateY(40px)', 'translateY(-10px)', etc.
+  const profilePicturesMover = 'translateY(30px)';
+  
+  // Save button position mover - adjust vertical position of Save Profile Picture button
+  // Positive values move down, negative values move up
+  // Options: 'translateY(0px)', 'translateY(10px)', 'translateY(20px)', 'translateY(30px)', 'translateY(40px)', 'translateY(-10px)', etc.
+  const saveButtonMover = 'translateY(30px)';
+  
   // Button position spacer - adjust h-8 to move button up (lower number) or down (higher number)
   const buttonSpacer = 'h-8';
 
   const [selectedAvatar, setSelectedAvatar] = useState<string | null>(null);
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState<string | null>(null);
+  const [profilePictureSaved, setProfilePictureSaved] = useState(false);
 
   const handleSave = async () => {
     if (!selectedAvatar) {
@@ -61,6 +64,9 @@ export function ProfilePictureSelector({ open, onOpenChange, userId, onComplete 
       if (!avatar) {
         throw new Error('Invalid avatar selection');
       }
+
+      // Get the profile picture value (image path)
+      const profilePicValue = avatar.image;
 
       // First, check if profile exists and wait a bit if it doesn't (trigger might still be creating it)
       let profileExists = false;
@@ -85,10 +91,10 @@ export function ProfilePictureSelector({ open, onOpenChange, userId, onComplete 
         throw new Error('Profile not found. Please try again.');
       }
 
-      // Update the profile with the selected avatar emoji
+      // Update the profile with the selected avatar (emoji or image path)
       const { data: updateData, error: updateError } = await supabase
         .from('profiles')
-        .update({ profile_pic: avatar.emoji })
+        .update({ profile_pic: profilePicValue })
         .eq('id', userId)
         .select()
         .single();
@@ -99,14 +105,20 @@ export function ProfilePictureSelector({ open, onOpenChange, userId, onComplete 
       }
 
       // Verify the update was successful
-      if (!updateData || updateData.profile_pic !== avatar.emoji) {
+      if (!updateData || updateData.profile_pic !== profilePicValue) {
         throw new Error('Failed to save profile picture. Please try again.');
       }
 
       console.log('Profile picture saved successfully:', updateData.profile_pic);
 
+      // Mark that profile picture was saved
+      setProfilePictureSaved(true);
+
       // Close dialogs first
       onOpenChange(false);
+      
+      // Call onComplete to notify parent that registration is complete
+      onComplete();
       
       // Wait a bit longer to ensure database update is fully committed
       // Then trigger a page refresh to update nav bar with new profile picture
@@ -120,13 +132,55 @@ export function ProfilePictureSelector({ open, onOpenChange, userId, onComplete 
     }
   };
 
+  const handleDialogClose = async (open: boolean) => {
+    if (!open && !profilePictureSaved) {
+      // User is trying to close without selecting a profile picture
+      // Delete the user account and profile
+      try {
+        const supabase = createClient();
+        
+        // Sign out the user first
+        await supabase.auth.signOut();
+        
+        // Delete the profile (this will be cleaned up by cascade or trigger)
+        const { error: profileDeleteError } = await supabase
+          .from('profiles')
+          .delete()
+          .eq('id', userId);
+        
+        if (profileDeleteError) {
+          console.error('Error deleting profile:', profileDeleteError);
+        }
+        
+        // Note: We can't delete the auth user from client-side without admin API
+        // The profile deletion should be sufficient, and the auth user can be cleaned up
+        // by a server-side cron job or manually if needed
+        console.log('User account cancelled - profile deleted and user signed out');
+        
+        // Reset the form and close dialogs
+        onOpenChange(false);
+        
+        // Reload to reset the auth state
+        window.location.reload();
+        return;
+      } catch (err) {
+        console.error('Error cleaning up user account:', err);
+        // Still close the dialog even if cleanup fails
+        onOpenChange(open);
+        return;
+      }
+    }
+    
+    onOpenChange(open);
+  };
+
   return (
-    <Dialog open={open} onOpenChange={onOpenChange}>
+    <Dialog open={open} onOpenChange={handleDialogClose}>
       <DialogContent className={`${dialogMaxWidth} ${dialogWidth} ${dialogHeight} bg-gradient-to-br from-black/80 via-[#0a0a0a]/90 to-black/80 backdrop-blur-xl border border-white/10 shadow-[0_0_40px_rgba(0,0,0,0.5)] rounded-lg p-0 overflow-y-auto`}>
         <DialogTitle className="sr-only">Choose Your Profile Picture</DialogTitle>
         
         <div className="p-8">
-          <div className="text-center mb-8">
+          <div className="text-center mb-12">
             <h2 className="text-3xl font-bold text-white mb-2 font-mono">Choose Your Profile Picture</h2>
             <div className="w-20 h-px bg-gradient-to-r from-transparent via-white/30 to-transparent mx-auto mb-2" />
             <p className="text-white/70 font-mono text-sm">Select a poker-themed avatar to represent you</p>
@@ -138,34 +192,43 @@ export function ProfilePictureSelector({ open, onOpenChange, userId, onComplete 
             </div>
           )}
 
-          <div className="grid grid-cols-6 gap-3 mb-8">
+          <div className="flex justify-center mb-8" style={{ transform: profilePicturesMover }}>
+            <div className="grid grid-cols-3 gap-6 max-w-md">
             {POKER_AVATARS.map((avatar) => (
               <button
                 key={avatar.id}
                 onClick={() => setSelectedAvatar(avatar.id)}
                 className={`
-                  relative aspect-square rounded-lg border-2 transition-all duration-300
-                  flex items-center justify-center text-2xl
+                  relative aspect-square rounded-lg border-2 transition-all duration-200 ease-out
+                  flex items-center justify-center text-2xl overflow-hidden
                   backdrop-blur-sm
                   ${
                     selectedAvatar === avatar.id
-                      ? 'border-white bg-white/20 shadow-[0_0_20px_rgba(255,255,255,0.2)] scale-105'
+                      ? 'border-white bg-white/20 shadow-[0_0_20px_rgba(255,255,255,0.3)] scale-[1.05]'
                       : 'border-white/10 bg-white/5 hover:border-white/20 hover:bg-white/10'
                   }
                 `}
               >
-                <span>{avatar.emoji}</span>
+                <Image
+                  src={avatar.image}
+                  alt={avatar.name}
+                  width={48}
+                  height={48}
+                  className="w-full h-full object-cover"
+                  unoptimized
+                />
                 {selectedAvatar === avatar.id && (
-                  <div className="absolute inset-0 bg-white/10 rounded-lg" />
+                  <div className="absolute inset-0 bg-white/15 rounded-lg pointer-events-none" />
                 )}
               </button>
             ))}
+            </div>
           </div>
 
           {/* Spacer - adjust buttonSpacer value above to move button up (lower number) or down (higher number) */}
           <div className={buttonSpacer}></div>
 
-          <div className="flex justify-center">
+          <div className="flex justify-center" style={{ transform: saveButtonMover }}>
             <InteractiveHoverButton
               onClick={handleSave}
               text="Save Profile Picture"

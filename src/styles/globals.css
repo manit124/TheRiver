@@ -54,6 +54,7 @@ body {
 
 /* Clean dark background */
 .poker-table {
+  background: #000000;
   position: relative;
 }
 
