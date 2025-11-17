@@ -117,10 +117,14 @@ export function PokerTable({ tableState, playerId, onBackClick }: PokerTableProp
               >
                 <div className="relative">
                   {/* Avatar */}
-                  <div className={`w-14 h-14 rounded-full flex items-center justify-center text-2xl ${
+                  <div className={`w-14 h-14 rounded-full flex items-center justify-center text-2xl overflow-hidden ${
                     player.connected ? 'opacity-100' : 'opacity-40'
                   }`}>
-                    {player.avatar}
+                    {player.avatar && player.avatar.startsWith('/') ? (
+                      <img src={player.avatar} alt={player.name} className="w-full h-full object-cover" />
+                    ) : (
+                      <span>{player.avatar}</span>
+                    )}
                   </div>
                   {/* Dealer badge */}
                   {player.isDealer && (
@@ -137,34 +141,42 @@ export function PokerTable({ tableState, playerId, onBackClick }: PokerTableProp
                     {player.stack}
                   </p>
                 </div>
-                {/* Player's cards below avatar (face down) */}
+                {/* Player's cards below avatar - show face-up at showdown if not folded */}
                 <div className="flex gap-1 mt-2 justify-center">
                   {player.holeCards && player.holeCards.length > 0 ? (
-                    player.holeCards.map((card, cardIdx) => (
-                      <motion.div
-                        key={card.id}
-                        initial={{ y: 0, opacity: 1, rotateY: 0 }}
-                        animate={player.hasFolded ? { 
-                          opacity: 0.3,
-                        } : { 
-                          y: 0, 
-                          opacity: 1,
-                          rotateY: 0,
-                          scale: 1
-                        }}
-                        transition={{ 
-                          duration: 0.3, 
-                          ease: "easeOut"
-                        }}
-                        className="relative"
-                      >
-                        <CardDisplay 
-                          card={card} 
-                          faceDown={true} 
-                          size="sm" 
-                        />
-                      </motion.div>
-                    ))
+                    player.holeCards.map((card, cardIdx) => {
+                      // Show cards face-up if: at showdown AND player hasn't folded
+                      // Folded players' cards always stay face-down
+                      const shouldReveal = tableState.street === 'showdown' && !player.hasFolded;
+                      
+                      return (
+                        <motion.div
+                          key={card.id}
+                          initial={{ y: 0, opacity: 1, rotateY: shouldReveal ? 180 : 0 }}
+                          animate={player.hasFolded ? { 
+                            opacity: 0.3,
+                            rotateY: 0, // Keep face-down if folded
+                          } : { 
+                            y: 0, 
+                            opacity: 1,
+                            rotateY: shouldReveal ? 0 : 180, // Flip to face-up at showdown
+                            scale: 1
+                          }}
+                          transition={{ 
+                            duration: 0.5, 
+                            delay: cardIdx * 0.1,
+                            ease: "easeOut"
+                          }}
+                          className="relative"
+                        >
+                          <CardDisplay 
+                            card={card} 
+                            faceDown={!shouldReveal || player.hasFolded} 
+                            size="sm" 
+                          />
+                        </motion.div>
+                      );
+                    })
                   ) : (
                     // Show empty card placeholders when no cards
                     Array.from({ length: 2 }).map((_, i) => (
@@ -364,7 +376,11 @@ export function PokerTable({ tableState, playerId, onBackClick }: PokerTableProp
                   {/* Avatar/Emoji */}
                   <div className="flex justify-center mb-1">
                     <div className="w-8 h-8 rounded-full flex items-center justify-center text-lg bg-white/5 border border-white/10">
-                      {currentPlayer.avatar}
+                      {currentPlayer.avatar && currentPlayer.avatar.startsWith('/') ? (
+                        <img src={currentPlayer.avatar} alt={currentPlayer.name} className="w-full h-full object-cover rounded-full" />
+                      ) : (
+                        <span>{currentPlayer.avatar}</span>
+                      )}
                     </div>
                   </div>
                   

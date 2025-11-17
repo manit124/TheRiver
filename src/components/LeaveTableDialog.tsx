@@ -14,9 +14,10 @@ interface LeaveTableDialogProps {
   open: boolean;
   onOpenChange: (open: boolean) => void;
   userId?: string;
+  originalBuyIn?: number; // Original buy-in amount when joining
 }
 
-function LeaveTableDialogContent({ open, onOpenChange, userId }: LeaveTableDialogProps) {
+function LeaveTableDialogContent({ open, onOpenChange, userId, originalBuyIn }: LeaveTableDialogProps) {
   const router = useRouter();
   const searchParams = useSearchParams();
   const disconnect = useTableStore((state) => state.disconnect);
@@ -32,23 +33,26 @@ function LeaveTableDialogContent({ open, onOpenChange, userId }: LeaveTableDialo
       const currentPlayer = state?.players.find((p) => p.id === playerId);
       const remainingStack = currentPlayer?.stack || 0;
 
-      // Get buy-in amount from URL params
-      const buyInAmount = parseInt(searchParams.get('buyIn') || '0');
-      const minBuyIn = parseInt(searchParams.get('minBuyIn') || '0');
-      const maxBuyIn = parseInt(searchParams.get('maxBuyIn') || '0');
-      
-      // Determine the actual buy-in amount used (prefer buyIn, fallback to minBuyIn or maxBuyIn)
-      const actualBuyIn = buyInAmount > 0 ? buyInAmount : (minBuyIn > 0 ? minBuyIn : maxBuyIn);
+      // Use originalBuyIn prop if provided, otherwise try to get from URL params
+      let actualBuyIn = originalBuyIn || 0;
+      if (!actualBuyIn) {
+        const buyInAmount = parseInt(searchParams.get('buyIn') || '0');
+        const minBuyIn = parseInt(searchParams.get('minBuyIn') || '0');
+        const maxBuyIn = parseInt(searchParams.get('maxBuyIn') || '0');
+        actualBuyIn = buyInAmount > 0 ? buyInAmount : (minBuyIn > 0 ? minBuyIn : maxBuyIn);
+      }
 
       // Add remaining stack back to user's profile chips
+      // When joining, buy-in was deducted from profile chips
+      // When leaving, we add back only the remaining stack (not the buy-in amount)
       // Formula: newChips = (current profile chips) + remainingStack
-      // This works because current profile chips = original chips - buyInAmount
-      // So: newChips = (original - buyIn) + remaining = original - buyIn + remaining
-      // Which is correct: player gets back what they had minus what they spent plus what they have left
+      // Example: User had 10k, joined with 1k (profile now 9k), leaves with 1k -> 9k + 1k = 10k (correct, net profit = 0)
+      // Example: User had 10k, joined with 1k (profile now 9k), leaves with 1.5k -> 9k + 1.5k = 10.5k (correct, +500 profit)
+      // Example: User had 10k, joined with 550 (profile now 9.45k), leaves with 550 -> 9.45k + 550 = 10k (correct, net profit = 0)
       if (userId) {
         const supabase = createClient();
         
-        // Fetch current chips (should already have buy-in deducted)
+        // Fetch current chips (should already have buy-in deducted when joining)
         const { data: profile } = await supabase
           .from('profiles')
           .select('chips')
@@ -56,10 +60,10 @@ function LeaveTableDialogContent({ open, onOpenChange, userId }: LeaveTableDialo
           .single();
 
         if (profile) {
-          // Calculate: current profile chips + remaining stack
-          // If profile.chips was correctly updated when joining (original - buyIn),
-          // then this gives us: (original - buyIn) + remaining = correct final amount
+          // Add back only the remaining stack (not the buy-in amount)
+          // The buy-in was already deducted when joining, so we just add back what's left
           const newChips = profile.chips + remainingStack;
+          const netProfit = remainingStack - actualBuyIn;
           
           const { error: updateError } = await supabase
             .from('profiles')
@@ -70,7 +74,7 @@ function LeaveTableDialogContent({ open, onOpenChange, userId }: LeaveTableDialo
             console.error('Error adding chips back:', updateError);
             // Still disconnect even if update fails
           } else {
-            console.log(`💰 Returning ${remainingStack} chips. Profile chips: ${profile.chips} → ${newChips} (buy-in was ${actualBuyIn})`);
+            console.log(`💰 Returning ${remainingStack} chips. Profile chips: ${profile.chips} → ${newChips} (buy-in was ${actualBuyIn}, net profit: ${netProfit >= 0 ? '+' : ''}${netProfit})`);
           }
         }
       }
@@ -133,10 +137,10 @@ function LeaveTableDialogContent({ open, onOpenChange, userId }: LeaveTableDialo
   );
 }
 
-export function LeaveTableDialog({ open, onOpenChange, userId }: LeaveTableDialogProps) {
+export function LeaveTableDialog({ open, onOpenChange, userId, originalBuyIn }: LeaveTableDialogProps) {
   return (
     <Suspense fallback={null}>
-      <LeaveTableDialogContent open={open} onOpenChange={onOpenChange} userId={userId} />
+      <LeaveTableDialogContent open={open} onOpenChange={onOpenChange} userId={userId} originalBuyIn={originalBuyIn} />
     </Suspense>
   );
 }

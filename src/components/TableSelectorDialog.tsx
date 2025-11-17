@@ -162,12 +162,13 @@ export function TableSelectorDialog({
 
     // Generate random room code
     const roomCode = generateRoomCode();
-    const buyInAmount = userChips >= selectedTable.maxBuyIn ? selectedTable.maxBuyIn : selectedTable.minBuyIn;
+    // Buy-in will be calculated on the table page based on user chips (clamped between min and max)
+    // Pass minBuyIn and maxBuyIn so the table page can calculate correctly
 
     if (onJoinTable) {
       onJoinTable({ ...selectedTable, id: roomCode });
     } else {
-      router.push(`/table/${roomCode}?stakes=${selectedTable.stakes}&buyIn=${buyInAmount}&bigBlind=${selectedTable.bigBlind}&smallBlind=${selectedTable.smallBlind}&minBuyIn=${selectedTable.minBuyIn}&maxBuyIn=${selectedTable.maxBuyIn}`);
+      router.push(`/table/${roomCode}?stakes=${selectedTable.stakes}&bigBlind=${selectedTable.bigBlind}&smallBlind=${selectedTable.smallBlind}&minBuyIn=${selectedTable.minBuyIn}&maxBuyIn=${selectedTable.maxBuyIn}`);
     }
     onOpenChange(false);
   };

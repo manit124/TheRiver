@@ -38,6 +38,11 @@ function TablePageContent() {
   const [checkingAuth, setCheckingAuth] = useState(true);
   const [insufficientChipsDialogOpen, setInsufficientChipsDialogOpen] = useState(false);
   const [requiredChips, setRequiredChips] = useState<number>(0);
+  const [originalBuyIn, setOriginalBuyIn] = useState<number>(0); // Track original buy-in for net profit calculation
+  const [tableSettingsFetched, setTableSettingsFetched] = useState(false);
+  const [chipsCheckedAfterJoin, setChipsCheckedAfterJoin] = useState(false);
+  const [tableMinBuyIn, setTableMinBuyIn] = useState<number>(0);
+  const [tableMaxBuyIn, setTableMaxBuyIn] = useState<number>(0);
 
   const state = useTableStore((state) => state.state);
   const playerId = useTableStore((state) => state.playerId);
@@ -66,7 +71,11 @@ function TablePageContent() {
           
           if (profile) {
             setUsername(profile.username);
-            setUserChips(profile.chips || 0);
+            // Only update userChips if we haven't already deducted (i.e., not joined yet)
+            // This prevents overwriting the deducted amount
+            if (!hasJoined) {
+              setUserChips(profile.chips || 0);
+            }
             setPlayerName(profile.username); // Auto-fill player name
           }
         } else {
@@ -96,14 +105,59 @@ function TablePageContent() {
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [roomCode]);
 
+  // When joining by code, connect first to get table state and settings
+  useEffect(() => {
+    const hasUrlParams = searchParams.get('minBuyIn') || searchParams.get('maxBuyIn');
+    
+    // If joining by code (no URL params), connect first to get table settings
+    if (!hasUrlParams && !checkingAuth && user && !isConnected && !hasJoined && !tableSettingsFetched) {
+      // Connect to socket to get table state
+      const tempSocket = require('socket.io-client')(process.env.NEXT_PUBLIC_SOCKET_URL || 'http://localhost:5050');
+      
+      tempSocket.on('connect', () => {
+        // Join room to get state (we'll disconnect after)
+        tempSocket.emit('room:join', { roomCode, name: 'settings_check', buyIn: 0 });
+      });
+      
+      tempSocket.on('table:state', (tableState: any) => {
+        // Got table state - extract settings
+        if (tableState.maxBet) {
+          const maxBuyIn = tableState.maxBet;
+          const minBuyIn = Math.floor(maxBuyIn * 0.2); // 20% of max as minimum
+          console.log(`📋 Table settings from server: minBuyIn=${minBuyIn}, maxBuyIn=${maxBuyIn}`);
+          // Store table settings
+          setTableMinBuyIn(minBuyIn);
+          setTableMaxBuyIn(maxBuyIn);
+          setTableSettingsFetched(true);
+        }
+        // Disconnect after getting state
+        setTimeout(() => {
+          tempSocket.disconnect();
+        }, 100);
+      });
+      
+      tempSocket.on('error', (error: any) => {
+        console.error('Error getting table settings:', error);
+        tempSocket.disconnect();
+      });
+      
+      return () => {
+        tempSocket.disconnect();
+      };
+    }
+  }, [checkingAuth, user, isConnected, hasJoined, tableSettingsFetched, searchParams, roomCode]);
+
   // Auto-join when user and username are available
   useEffect(() => {
-    if (!checkingAuth && user && username && !hasJoined) {
+    const hasUrlParams = searchParams.get('minBuyIn') || searchParams.get('maxBuyIn');
+    const isReady = hasUrlParams || tableSettingsFetched;
+    
+    if (!checkingAuth && user && username && !hasJoined && isReady) {
       // Auto-join with chip deduction
       handleJoin();
     }
     // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [checkingAuth, user, username, hasJoined]);
+  }, [checkingAuth, user, username, hasJoined, tableSettingsFetched]);
 
   // Debug countdown changes
   useEffect(() => {
@@ -124,6 +178,12 @@ function TablePageContent() {
   }, [state]);
 
   const handleJoin = async () => {
+    // Prevent multiple joins
+    if (hasJoined) {
+      console.log('⚠️ Already joined, skipping handleJoin');
+      return;
+    }
+    
     // Check if user is logged in
     if (!user) {
       setAuthDialogOpen(true);
@@ -139,65 +199,179 @@ function TablePageContent() {
     }
 
     // Get table settings from URL params
-    const minBuyIn = parseInt(searchParams.get('minBuyIn') || '0');
-    const maxBuyIn = parseInt(searchParams.get('maxBuyIn') || '0');
+    let minBuyIn = parseInt(searchParams.get('minBuyIn') || '0');
+    let maxBuyIn = parseInt(searchParams.get('maxBuyIn') || '0');
     const buyIn = parseInt(searchParams.get('buyIn') || '0');
+    const smallBlind = parseInt(searchParams.get('smallBlind') || '0');
+    const bigBlind = parseInt(searchParams.get('bigBlind') || '0');
 
-    // Check if user has enough chips
-    if (minBuyIn > 0 && userChips < minBuyIn) {
-      setRequiredChips(minBuyIn);
-      setInsufficientChipsDialogOpen(true);
-      return;
+    // If joining by code (no URL params), use table settings we fetched
+    if (minBuyIn === 0 && maxBuyIn === 0) {
+      if (tableMinBuyIn > 0 && tableMaxBuyIn > 0) {
+        // Use settings we fetched from the table
+        minBuyIn = tableMinBuyIn;
+        maxBuyIn = tableMaxBuyIn;
+        console.log(`📋 Joining by code - using table settings: minBuyIn=${minBuyIn}, maxBuyIn=${maxBuyIn}`);
+      } else {
+        // Fallback to defaults if we couldn't get table settings
+        maxBuyIn = 1000;
+        minBuyIn = 200;
+        console.log(`⚠️ Joining by code - using fallback defaults: minBuyIn=${minBuyIn}, maxBuyIn=${maxBuyIn}`);
+      }
     }
 
-    // Determine buy-in amount (max if user has enough, otherwise min)
-    const buyInAmount = userChips >= maxBuyIn ? maxBuyIn : (minBuyIn > 0 ? minBuyIn : buyIn);
+    // Skip chip validation here - we'll check after joining
+    // This allows join-by-code to work smoothly
 
-    // Deduct chips from user profile
+    // Determine buy-in amount based on user's available chips and table limits
+    // Rules:
+    // - If user has >= maxBuyIn, use maxBuyIn (NOT their total chips)
+    // - If user has < maxBuyIn but >= minBuyIn, use user's available chips
+    // - If user has < minBuyIn, use what they have (we'll check after joining)
+    let buyInAmount: number;
+    if (minBuyIn > 0 && maxBuyIn > 0) {
+      if (userChips >= maxBuyIn) {
+        // User has enough for max, use max (NOT their total chips)
+        buyInAmount = maxBuyIn;
+      } else if (userChips >= minBuyIn) {
+        // User has between min and max, use their available amount
+        buyInAmount = userChips;
+      } else {
+        // User has less than min - use what they have (we'll check after joining)
+        buyInAmount = userChips > 0 ? userChips : 0;
+      }
+    } else if (minBuyIn > 0) {
+      // Only min specified, use user's chips (even if less than min)
+      buyInAmount = userChips > 0 ? userChips : 0;
+    } else if (maxBuyIn > 0) {
+      // Only max specified, use user's chips if <= max, otherwise max
+      buyInAmount = Math.min(userChips, maxBuyIn);
+    } else {
+      // Fallback to buyIn param or user's chips
+      buyInAmount = buyIn > 0 ? Math.min(userChips, buyIn) : userChips;
+    }
+    
+    // Store original buy-in for net profit calculation when leaving
+    setOriginalBuyIn(buyInAmount);
+
+    // Deduct chips from user profile IMMEDIATELY before connecting
     try {
       const supabase = createClient();
       const { data: { user: authUser } } = await supabase.auth.getUser();
       
-      if (authUser) {
-        // Fetch current chips
-        const { data: profile } = await supabase
+      if (!authUser) {
+        setHasJoined(false); // Reset to allow retry
+        alert('You must be logged in to join a table.');
+        return;
+      }
+
+      // Fetch current chips
+      const { data: profile, error: fetchError } = await supabase
+        .from('profiles')
+        .select('chips')
+        .eq('id', authUser.id)
+        .single();
+
+      if (fetchError) {
+        console.error('Error fetching profile:', fetchError);
+        setHasJoined(false); // Reset to allow retry
+        alert('Failed to fetch your profile. Please try again.');
+        return;
+      }
+
+      if (!profile) {
+        setHasJoined(false); // Reset to allow retry
+        alert('Profile not found. Please try again.');
+        return;
+      }
+
+      // Check if user has enough chips - if not, use what they have
+      const actualBuyIn = Math.min(profile.chips, buyInAmount);
+      if (profile.chips < buyInAmount) {
+        console.warn(`⚠️ User has ${profile.chips} chips but calculated buy-in is ${buyInAmount}. Using ${actualBuyIn} instead.`);
+        buyInAmount = actualBuyIn;
+        setOriginalBuyIn(actualBuyIn);
+      }
+
+      // Only deduct if user has chips
+      if (actualBuyIn <= 0) {
+        console.warn(`⚠️ User has no chips to buy in with`);
+        // Still allow join, but we'll check and prompt after
+        buyInAmount = 0;
+        setOriginalBuyIn(0);
+      } else {
+        // Deduct chips - CRITICAL: This must complete before connecting
+        const newChips = profile.chips - actualBuyIn;
+        console.log(`💰 Deducting ${actualBuyIn} chips. Current: ${profile.chips}, New: ${newChips}`);
+        
+        const { data: updatedProfile, error: updateError } = await supabase
           .from('profiles')
-          .select('chips')
+          .update({ chips: newChips })
           .eq('id', authUser.id)
+          .select()
           .single();
 
-        if (profile && profile.chips >= buyInAmount) {
-          // Deduct chips
-          const newChips = profile.chips - buyInAmount;
-          const { error: updateError } = await supabase
-            .from('profiles')
-            .update({ chips: newChips })
-            .eq('id', authUser.id);
-
-          if (updateError) {
-            console.error('Error deducting chips:', updateError);
-            alert('Failed to deduct chips. Please try again.');
-            return;
-          }
-
-          // Update local state
-          setUserChips(newChips);
-          console.log(`💰 Deducted ${buyInAmount} chips. Remaining: ${newChips}`);
-        } else {
-          setRequiredChips(buyInAmount);
-          setInsufficientChipsDialogOpen(true);
+        if (updateError) {
+          console.error('Error deducting chips:', updateError);
+          setHasJoined(false); // Reset to allow retry
+          alert(`Failed to deduct chips: ${updateError.message}. Please try again.`);
           return;
         }
+
+        if (!updatedProfile) {
+          console.error('No profile returned after update');
+          setHasJoined(false); // Reset to allow retry
+          alert('Failed to update chips. Please try again.');
+          return;
+        }
+
+        // Verify the update worked
+        if (updatedProfile.chips !== newChips) {
+          console.error(`Chip update mismatch! Expected: ${newChips}, Got: ${updatedProfile.chips}`);
+          setHasJoined(false); // Reset to allow retry
+          alert('Chip deduction verification failed. Please try again.');
+          return;
+        }
+
+        // Update local state
+        setUserChips(updatedProfile.chips);
+        console.log(`✅ Successfully deducted ${actualBuyIn} chips. Remaining: ${updatedProfile.chips}`);
       }
+      
     } catch (error) {
       console.error('Error processing buy-in:', error);
-      alert('Failed to process buy-in. Please try again.');
+      setHasJoined(false); // Reset to allow retry
+      alert(`Failed to process buy-in: ${error instanceof Error ? error.message : 'Unknown error'}. Please try again.`);
       return;
     }
     
-    console.log('🔵 Join button clicked, connecting...', { roomCode, playerName: nameToUse, buyInAmount });
+    // Ensure buyInAmount is a valid positive number
+    if (!buyInAmount || buyInAmount <= 0) {
+      console.error('❌ Invalid buyInAmount:', buyInAmount);
+      setHasJoined(false); // Reset to allow retry
+      alert('Invalid buy-in amount. Please try again.');
+      return;
+    }
+    
+    // Fetch user's profile picture before connecting
+    let profilePic: string | null = null;
+    try {
+      const supabase = createClient();
+      const { data: profile } = await supabase
+        .from('profiles')
+        .select('profile_pic')
+        .eq('id', user.id)
+        .single();
+      if (profile?.profile_pic) {
+        profilePic = profile.profile_pic;
+      }
+    } catch (error) {
+      console.error('Error fetching profile picture:', error);
+    }
+    
+    console.log('🔵 Join button clicked, connecting...', { roomCode, playerName: nameToUse, buyInAmount, smallBlind, bigBlind, buyInType: typeof buyInAmount, profilePic });
     setHasJoined(true);
-    connect(roomCode, nameToUse);
+    connect(roomCode, nameToUse, buyInAmount, smallBlind, bigBlind, profilePic);
   };
 
   useEffect(() => {
@@ -205,6 +379,32 @@ function TablePageContent() {
       disconnect();
     };
   }, [disconnect]);
+
+  // Check chips after joining - if insufficient, prompt to leave
+  useEffect(() => {
+    if (hasJoined && playerId && state && !chipsCheckedAfterJoin) {
+      const currentPlayer = state.players.find(p => p.id === playerId);
+      if (currentPlayer) {
+        setChipsCheckedAfterJoin(true);
+        
+        // Get table settings
+        const hasUrlParams = searchParams.get('minBuyIn') || searchParams.get('maxBuyIn');
+        let minBuyIn = parseInt(searchParams.get('minBuyIn') || '0');
+        
+        // If joining by code, get from state
+        if (!hasUrlParams && state.maxBet) {
+          minBuyIn = Math.floor(state.maxBet * 0.2); // 20% of max as minimum
+        }
+        
+        // Check if player has enough chips for minimum buy-in
+        if (minBuyIn > 0 && userChips < minBuyIn) {
+          console.log(`⚠️ Player has ${userChips} chips but needs ${minBuyIn} for this table`);
+          setRequiredChips(minBuyIn);
+          setInsufficientChipsDialogOpen(true);
+        }
+      }
+    }
+  }, [hasJoined, playerId, state, chipsCheckedAfterJoin, userChips, searchParams, disconnect, router]);
 
   const currentState = state; // Only use real state from socket, no demo state
   const currentPlayerId = playerId;
@@ -230,8 +430,106 @@ function TablePageContent() {
     };
   }, [currentState, currentPlayerId, rebuyDialogOpen]);
 
-  const handleRebuy = () => {
-    rebuy();
+  const handleRebuy = async () => {
+    // Get table settings from URL params
+    const minBuyIn = parseInt(searchParams.get('minBuyIn') || '0');
+    const maxBuyIn = parseInt(searchParams.get('maxBuyIn') || '0');
+    
+    try {
+      const supabase = createClient();
+      const { data: { user: authUser } } = await supabase.auth.getUser();
+      
+      if (!authUser) {
+        alert('You must be logged in to rebuy.');
+        return;
+      }
+
+      // Fetch current chips
+      const { data: profile, error: fetchError } = await supabase
+        .from('profiles')
+        .select('chips')
+        .eq('id', authUser.id)
+        .single();
+
+      if (fetchError || !profile) {
+        console.error('Error fetching profile for rebuy:', fetchError);
+        alert('Failed to fetch your profile. Please try again.');
+        return;
+      }
+
+      const currentChips = profile.chips || 0;
+
+      // Calculate rebuy amount using same logic as initial join
+      let rebuyAmount: number;
+      if (minBuyIn > 0 && maxBuyIn > 0) {
+        if (currentChips >= maxBuyIn) {
+          rebuyAmount = maxBuyIn;
+        } else if (currentChips >= minBuyIn) {
+          rebuyAmount = currentChips; // Use all available chips if between min and max
+        } else {
+          // User has less than minimum - can't rebuy
+          alert(`You need at least ${minBuyIn} chips to rebuy. You currently have ${currentChips} chips.`);
+          setRebuyDialogOpen(false);
+          return;
+        }
+      } else if (minBuyIn > 0) {
+        if (currentChips >= minBuyIn) {
+          rebuyAmount = currentChips;
+        } else {
+          alert(`You need at least ${minBuyIn} chips to rebuy. You currently have ${currentChips} chips.`);
+          setRebuyDialogOpen(false);
+          return;
+        }
+      } else if (maxBuyIn > 0) {
+        rebuyAmount = Math.min(currentChips, maxBuyIn);
+      } else {
+        // Fallback to original buy-in or user's chips
+        rebuyAmount = originalBuyIn > 0 ? Math.min(currentChips, originalBuyIn) : currentChips;
+      }
+
+      if (rebuyAmount <= 0) {
+        alert('You don\'t have enough chips to rebuy.');
+        setRebuyDialogOpen(false);
+        return;
+      }
+
+      // Deduct chips from profile
+      const newChips = currentChips - rebuyAmount;
+      console.log(`💰 Rebuy: Deducting ${rebuyAmount} chips. Current: ${currentChips}, New: ${newChips}`);
+      
+      const { data: updatedProfile, error: updateError } = await supabase
+        .from('profiles')
+        .update({ chips: newChips })
+        .eq('id', authUser.id)
+        .select()
+        .single();
+
+      if (updateError || !updatedProfile) {
+        console.error('Error deducting chips for rebuy:', updateError);
+        alert(`Failed to deduct chips: ${updateError?.message || 'Unknown error'}. Please try again.`);
+        return;
+      }
+
+      // Verify the update worked
+      if (updatedProfile.chips !== newChips) {
+        console.error(`Rebuy chip update mismatch! Expected: ${newChips}, Got: ${updatedProfile.chips}`);
+        alert('Chip deduction verification failed. Please try again.');
+        return;
+      }
+
+      // Update local state
+      setUserChips(updatedProfile.chips);
+      setOriginalBuyIn(rebuyAmount); // Update original buy-in for future rebuys
+      console.log(`✅ Successfully rebought with ${rebuyAmount} chips. Remaining: ${updatedProfile.chips}`);
+
+      // Now call rebuy with the calculated amount
+      rebuy(rebuyAmount);
+      setRebuyDialogOpen(false);
+      
+    } catch (error) {
+      console.error('Error processing rebuy:', error);
+      alert(`Failed to process rebuy: ${error instanceof Error ? error.message : 'Unknown error'}. Please try again.`);
+    }
   };
 
   // Show join form if not joined yet and user doesn't have username
@@ -363,6 +661,8 @@ function TablePageContent() {
                 <Button
                   onClick={() => {
                     setInsufficientChipsDialogOpen(false);
+                    // Make player leave the table
+                    disconnect();
                     router.push('/');
                   }}
                   className="w-full bg-white/10 hover:bg-white/15 border border-white/20 text-white font-mono transition-all duration-300 hover:shadow-[0_0_20px_rgba(255,255,255,0.1)]"
@@ -391,11 +691,11 @@ function TablePageContent() {
 
 
   return (
-    <div className="h-screen text-white flex flex-col overflow-hidden">
-      <div className="overflow-visible">
+    <div className="h-screen text-white flex flex-col overflow-hidden relative">
+      <div className="overflow-visible relative z-10">
         <TableTopBar roomCode={roomCode} />
       </div>
-      <div className="flex-1 relative overflow-hidden">
+      <div className="flex-1 relative overflow-hidden z-10">
         {/* Show player count and waiting message if needed */}
         {currentState.players.length < 2 && (
           <div className="absolute top-48 left-1/2 transform -translate-x-1/2 bg-gradient-to-br from-[#0a0a0a] via-[#1a1a1a] to-[#0a0a0a] border border-white/20 rounded-xl px-6 py-3 z-10 shadow-[0_0_30px_rgba(255,255,255,0.1)]">
@@ -412,12 +712,14 @@ function TablePageContent() {
           />
         )}
       </div>
-      <LeaveTableDialog open={leaveDialogOpen} onOpenChange={setLeaveDialogOpen} userId={user?.id} />
+      <LeaveTableDialog open={leaveDialogOpen} onOpenChange={setLeaveDialogOpen} userId={user?.id} originalBuyIn={originalBuyIn} />
       <RebuyDialog 
         open={rebuyDialogOpen} 
         onOpenChange={setRebuyDialogOpen}
         onRebuy={handleRebuy}
-        buyInAmount={1000}
+        buyInAmount={originalBuyIn || 1000}
+        minBuyIn={parseInt(searchParams.get('minBuyIn') || '0')}
+        maxBuyIn={parseInt(searchParams.get('maxBuyIn') || '0')}
       />
       {winnerInfo && (
         <WinnerDisplay 

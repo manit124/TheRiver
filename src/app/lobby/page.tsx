@@ -101,12 +101,10 @@ function LobbyPageContent() {
       return;
     }
 
-    // Use max buy-in (player gets max buy-in in their stack for the game)
-    const buyInAmount = table.maxBuyIn;
-    
-    // Navigate to table with settings
+    // Buy-in will be calculated on the table page based on user chips (clamped between min and max)
+    // Pass minBuyIn and maxBuyIn so the table page can calculate correctly
     const roomCode = table.id;
-    router.push(`/table/${roomCode}?stakes=${table.stakes}&buyIn=${buyInAmount}&bigBlind=${table.bigBlind}&smallBlind=${table.smallBlind}`);
+    router.push(`/table/${roomCode}?stakes=${table.stakes}&bigBlind=${table.bigBlind}&smallBlind=${table.smallBlind}&minBuyIn=${table.minBuyIn}&maxBuyIn=${table.maxBuyIn}`);
   };
 
   const canJoinTable = (table: FixedTable) => {

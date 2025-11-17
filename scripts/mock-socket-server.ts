@@ -42,7 +42,8 @@ function createInitialState(roomCode: string, settings: any): TableState {
   return {
     roomCode,
     game: settings.game || 'texas',
-    bigBlind: 10,
+    smallBlind: settings.smallBlind || 5,
+    bigBlind: settings.bigBlind || 10,
     pot: 0,
     street: 'preflop',
     players: [],
@@ -133,6 +134,15 @@ function getNextPlayer(state: TableState): Player | null {
 }
 
 function handleAction(state: TableState, player: Player, action: ClientAction, roomCode: string): boolean {
+  // Check if all players are all-in (all have 0 chips) - if so, no more actions allowed
+  // Note: This is different from "at least one all-in" - we only block actions if ALL are all-in
+  const playersInHand = getPlayersInHand(state);
+  const allAllIn = playersInHand.length > 0 && playersInHand.every(p => p.stack === 0);
+  if (allAllIn) {
+    console.log('🚫 All players are all-in (0 chips), no more actions allowed');
+    return false;
+  }
+  
   if (action.type === 'FOLD') {
     player.hasFolded = true;
     player.hasActedThisRound = true;
@@ -232,6 +242,29 @@ function moveToNextPlayer(state: TableState, roomCode: string) {
   }
   
   if (isRoundComplete(state)) {
+    // Check if at least one player is all-in (has 0 chips) AND bets are matched
+    // If so, reveal all remaining cards even if other players still have chips
+    const hasAllInPlayer = playersInHand.some(p => p.stack === 0);
+    
+    if (hasAllInPlayer && state.community.length < 5) {
+      // At least one player is all-in and bets are matched - reveal all remaining cards
+      const allInPlayers = playersInHand.filter(p => p.stack === 0);
+      const playersWithChips = playersInHand.filter(p => p.stack > 0);
+      console.log(`🎯 All-in detected: ${allInPlayers.map(p => p.name).join(', ')} are all-in (0 chips). ${playersWithChips.length > 0 ? `Other players (${playersWithChips.map(p => `${p.name}=${p.stack}`).join(', ')}) have matched bets.` : ''} Revealing all remaining cards.`);
+      // Still collect bets first
+      const { totalAmount, playerBets } = getBetData(state);
+      if (totalAmount > 0 && playerBets.length > 0) {
+        io.to(roomCode).emit('betting:round:complete', { 
+          totalAmount: totalAmount,
+          playerBets: playerBets 
+        });
+      }
+      collectBetsToPot(state);
+      io.to(roomCode).emit('table:state', state);
+      revealAllCards(state, roomCode);
+      return;
+    }
+    
     // Round complete - get bet data BEFORE collecting (so frontend can see currentBet values)
     const { totalAmount, playerBets } = getBetData(state);
     
@@ -255,12 +288,6 @@ function moveToNextPlayer(state: TableState, roomCode: string) {
     io.to(roomCode).emit('table:state', state);
     
     // Move to next street immediately
-    const allAllIn = playersInHand.every(p => p.stack === 0);
-    if (allAllIn && state.community.length < 5) {
-      revealAllCards(state, roomCode);
-      return;
-    }
-    
     nextStreet(state, roomCode);
     io.to(roomCode).emit('table:state', state);
     return;
@@ -272,6 +299,27 @@ function moveToNextPlayer(state: TableState, roomCode: string) {
   if (!next) {
     // Double check if round is complete
     if (isRoundComplete(state)) {
+      // Check if at least one player is all-in (has 0 chips) AND bets are matched
+      const hasAllInPlayer = playersInHand.some(p => p.stack === 0);
+      
+      if (hasAllInPlayer && state.community.length < 5) {
+        // At least one player is all-in and bets are matched - reveal remaining cards immediately
+        const allInPlayers = playersInHand.filter(p => p.stack === 0);
+        const playersWithChips = playersInHand.filter(p => p.stack > 0);
+        console.log(`🎯 All-in detected (fallback check): ${allInPlayers.map(p => p.name).join(', ')} are all-in. Revealing remaining cards (${state.community.length}/5 open)`);
+        const { totalAmount, playerBets } = getBetData(state);
+        if (totalAmount > 0 && playerBets.length > 0) {
+          io.to(roomCode).emit('betting:round:complete', { 
+            totalAmount: totalAmount,
+            playerBets: playerBets 
+          });
+        }
+        collectBetsToPot(state);
+        io.to(roomCode).emit('table:state', state);
+        revealAllCards(state, roomCode);
+        return;
+      }
+      
       const { totalAmount, playerBets } = getBetData(state);
       
       // Emit state FIRST with currentBet values still visible
@@ -289,11 +337,6 @@ function moveToNextPlayer(state: TableState, roomCode: string) {
       io.to(roomCode).emit('table:state', state);
       
       // Move to next street immediately
-      const allAllIn = playersInHand.every(p => p.stack === 0);
-      if (allAllIn && state.community.length < 5) {
-        revealAllCards(state, roomCode);
-        return;
-      }
       nextStreet(state, roomCode);
       io.to(roomCode).emit('table:state', state);
     }
@@ -341,7 +384,7 @@ function startHand(state: TableState, roomCode: string) {
     activePlayers[0].isDealer = true;
   }
 
-  // Post blinds: Small blind = 5, Big blind = 10
+  // Post blinds: Use values from state (set when room was created/joined)
   const dealerIndex = state.players.findIndex(p => p.isDealer);
   let sbIndex = (dealerIndex + 1) % state.players.length;
   let bbIndex = (dealerIndex + 2) % state.players.length;
@@ -353,27 +396,34 @@ function startHand(state: TableState, roomCode: string) {
     bbIndex = (bbIndex + 1) % state.players.length;
   }
   
-  const sb = 5;
-  const bb = 10;
+  // Use blinds from state, fallback to defaults if not set
+  const sb = state.smallBlind || 5;
+  const bb = state.bigBlind || 10;
   
   // Post blinds - deduct from stack immediately, show as currentBet
+  // Blinds will be collected to pot when betting round completes
   if (state.players[sbIndex].stack >= sb) {
+    const oldStack = state.players[sbIndex].stack;
     state.players[sbIndex].stack -= sb;
     state.players[sbIndex].currentBet = sb;
     state.players[sbIndex].hasActedThisRound = false;
+    console.log(`🎰 Small blind: ${state.players[sbIndex].name} posts ${sb} (stack: ${oldStack} → ${state.players[sbIndex].stack})`);
   }
   if (state.players[bbIndex].stack >= bb) {
+    const oldStack = state.players[bbIndex].stack;
     state.players[bbIndex].stack -= bb;
     state.players[bbIndex].currentBet = bb;
     state.players[bbIndex].hasActedThisRound = false;
+    console.log(`🎰 Big blind: ${state.players[bbIndex].name} posts ${bb} (stack: ${oldStack} → ${state.players[bbIndex].stack})`);
   }
 
   state.street = 'preflop';
   state.pot = 0; // Explicitly reset pot to 0 for new hand
+  console.log(`🎰 Starting new hand - pot reset to 0`);
   state.community = [];
   state.minBet = bb; // Big blind is minimum bet
   
-  // Small blind acts first (needs to call 5 more to match big blind)
+  // Small blind acts first (needs to call the difference to match big blind)
   state.players.forEach(p => p.isTurn = false);
   state.toActPlayerId = state.players[sbIndex].id;
   state.players[sbIndex].isTurn = true;
@@ -392,6 +442,17 @@ function nextStreet(state: TableState, roomCode: string) {
   } else if (state.street === 'turn') {
     dealRiver(state, roomCode);
     state.street = 'river';
+  } else if (state.street === 'river') {
+    // River betting complete - move to showdown and reveal cards
+    state.street = 'showdown';
+    console.log('🎴 Moving to showdown - revealing all non-folded players\' cards');
+    // Emit state with showdown so frontend can reveal cards
+    io.to(roomCode).emit('table:state', state);
+    // Wait a moment for cards to be revealed, then end the hand
+    setTimeout(() => {
+      endHand(state, roomCode);
+    }, 1000);
+    return;
   } else {
     state.street = 'showdown';
     endHand(state, roomCode);
@@ -460,26 +521,82 @@ function dealRiver(state: TableState, roomCode: string) {
 }
 
 function revealAllCards(state: TableState, roomCode: string) {
+  const cardsAlreadyOpen = state.community.length;
+  const cardsToReveal = 5 - cardsAlreadyOpen;
+  console.log(`🃏 Revealing remaining cards - all players are all-in (${cardsAlreadyOpen}/5 already open, revealing ${cardsToReveal} more)`);
+  
   const deck = handDecks.get(roomCode) || shuffleDeck();
   handDecks.set(roomCode, deck);
   const playersInHand = state.players.filter(p => p.holeCards && p.holeCards.length > 0);
   const cardsPerPlayer = state.game === 'omaha' ? 4 : 2;
-  const used = playersInHand.length * cardsPerPlayer + state.community.length;
-  while (state.community.length < 5) {
-    state.community.push(deck[used + state.community.length - used]);
-  }
-  state.street = 'showdown';
-  endHand(state, roomCode);
+  const used = playersInHand.length * cardsPerPlayer + cardsAlreadyOpen;
+  
+  // Reveal all remaining community cards one by one with a delay
+  let cardsRevealed = 0;
+  const revealNextCard = () => {
+    if (state.community.length < 5) {
+      state.community.push(deck[used + cardsRevealed]);
+      cardsRevealed++;
+      
+      // Update street based on number of cards
+      if (state.community.length === 3) {
+        state.street = 'flop';
+      } else if (state.community.length === 4) {
+        state.street = 'turn';
+      } else if (state.community.length === 5) {
+        state.street = 'showdown';
+      }
+      
+      // Emit state after each card is revealed
+      state.toActPlayerId = undefined; // No more betting since all are all-in
+      state.players.forEach(p => p.isTurn = false); // Clear all turns
+      io.to(roomCode).emit('table:state', state);
+      
+      // If more cards to reveal, wait and reveal next one
+      if (state.community.length < 5) {
+        setTimeout(revealNextCard, 800); // 800ms delay between each card
+      } else {
+        // All 5 cards revealed, wait a bit then end the hand
+        console.log(`🃏 All 5 community cards revealed, ending hand in 1.5 seconds`);
+        setTimeout(() => {
+          console.log('🃏 Cards revealed, ending hand now');
+          endHand(state, roomCode);
+        }, 1500);
+      }
+    }
+  };
+  
+  // Start revealing cards
+  revealNextCard();
 }
 
 function endHand(state: TableState, roomCode: string) {
-  // Collect any remaining bets
+  // Ensure we're at showdown (cards should be revealed)
+  if (state.street !== 'showdown') {
+    state.street = 'showdown';
+    console.log('🎴 Setting street to showdown in endHand');
+    // Emit state so cards are revealed before showing winner
+    io.to(roomCode).emit('table:state', state);
+  }
+  
+  // Collect any remaining bets (should be 0 if collectBetsToPot was called properly)
+  // But we check just in case there are any stragglers
+  let remainingBets = 0;
   state.players.forEach(p => {
-    if ((p.currentBet || 0) > 0) {
-      state.pot += (p.currentBet || 0);
+    const bet = p.currentBet || 0;
+    if (bet > 0) {
+      remainingBets += bet;
+      state.pot += bet;
       p.currentBet = 0;
+      console.log(`💰 Collecting remaining bet from ${p.name}: ${bet} (pot now: ${state.pot})`);
     }
   });
+  
+  if (remainingBets > 0) {
+    console.log(`⚠️ Warning: Collected ${remainingBets} in remaining bets at endHand`);
+  }
+  
+  console.log(`🎯 EndHand: Final pot = ${state.pot}, Active players: ${state.players.filter(p => !p.hasFolded && p.holeCards && p.holeCards.length > 0).length}`);
   
   const active = state.players.filter(p => !p.hasFolded && p.holeCards && p.holeCards.length > 0);
   
@@ -509,6 +626,9 @@ function endHand(state: TableState, roomCode: string) {
   const pot = state.pot;
   const perWinner = Math.floor(pot / winners.length);
   const remainder = pot % winners.length;
+  
+  console.log(`🏆 Winners: ${winners.map(w => w.name).join(', ')}, Pot: ${pot}, Per winner: ${perWinner}, Remainder: ${remainder}`);
+  console.log(`🏆 Winner stacks BEFORE: ${winners.map(w => `${w.name}=${w.stack}`).join(', ')}`);
   
   const names = winners.map(w => w.name).join(' & ');
   const rank = hands.find(h => h.player.id === winners[0].id)?.result.rank || 'Unknown';
@@ -568,9 +688,15 @@ function endHand(state: TableState, roomCode: string) {
     const oldStacks = new Map(winners.map(w => [w.id, w.stack]));
     
     // Update stacks (will be animated on frontend via NumberFlow)
+    // IMPORTANT: Only add the pot amount, not the player's existing stack
     winners.forEach((w, i) => {
-      w.stack += perWinner + (i < remainder ? 1 : 0);
+      const winAmount = perWinner + (i < remainder ? 1 : 0);
+      const oldStack = w.stack;
+      w.stack += winAmount;
+      console.log(`💰 ${w.name}: ${oldStack} + ${winAmount} (from pot) = ${w.stack}`);
     });
+    
+    console.log(`🏆 Winner stacks AFTER: ${winners.map(w => `${w.name}=${w.stack}`).join(', ')}`);
     
     // Set pot to 0 after emptying animation completes
     state.pot = 0;
@@ -633,11 +759,26 @@ io.on('connection', (socket) => {
     socket.emit('room:created', { roomCode });
   });
 
-  socket.on('room:join', ({ roomCode, name }: { roomCode: string; name: string }) => {
+  socket.on('room:join', ({ roomCode, name, buyIn, smallBlind, bigBlind, profilePic }: { roomCode: string; name: string; buyIn?: number; smallBlind?: number; bigBlind?: number; profilePic?: string | null }) => {
+    console.log(`📥 room:join received:`, { roomCode, name, buyIn, smallBlind, bigBlind, buyInType: typeof buyIn });
     let state = rooms.get(roomCode);
     if (!state) {
-      state = createInitialState(roomCode, { game: 'texas', bigBlind: 10, buyIn: 1000 });
+      // Use values from client if provided, otherwise use defaults
+      // Use nullish coalescing to only default if value is null/undefined
+      const defaultBuyIn = buyIn !== undefined && buyIn !== null ? buyIn : 1000;
+      const defaultSmallBlind = smallBlind !== undefined && smallBlind !== null ? smallBlind : 5;
+      const defaultBigBlind = bigBlind !== undefined && bigBlind !== null ? bigBlind : 10;
+      console.log(`🏗️ Creating new room state with buyIn: ${defaultBuyIn}, smallBlind: ${defaultSmallBlind}, bigBlind: ${defaultBigBlind}`);
+      state = createInitialState(roomCode, { game: 'texas', smallBlind: defaultSmallBlind, bigBlind: defaultBigBlind, buyIn: defaultBuyIn });
       rooms.set(roomCode, state);
+    } else {
+      // If room exists but blinds weren't set, update them from client
+      if (smallBlind !== undefined && smallBlind !== null && !state.smallBlind) {
+        state.smallBlind = smallBlind;
+      }
+      if (bigBlind !== undefined && bigBlind !== null && !state.bigBlind) {
+        state.bigBlind = bigBlind;
+      }
     }
 
     if (state.players.length >= 7) {
@@ -646,16 +787,55 @@ io.on('connection', (socket) => {
     }
 
     const playerId = `player_${socket.id}`;
-    if (state.players.find(p => p.id === playerId)) {
+    const existingPlayer = state.players.find(p => p.id === playerId);
+    if (existingPlayer) {
+      // Player already exists - update their name and avatar if provided
+      if (name) {
+        existingPlayer.name = name;
+      }
+      if (profilePic) {
+        existingPlayer.avatar = profilePic;
+      }
+      // Update buy-in if provided and different
+      if (buyIn !== undefined && buyIn !== null && buyIn > 0) {
+        existingPlayer.stack = buyIn;
+      }
       io.to(roomCode).emit('table:state', state);
+      socket.emit('player:id', { playerId });
+      return;
+    }
+    
+    // Don't create a player if name is 'settings_check' - this is just for fetching table state
+    if (name === 'settings_check') {
+      // Just emit the table state without creating a player
+      socket.emit('table:state', state);
       return;
     }
 
+    // Use buyIn from client if provided
+    // If room exists, use existing maxBet as default if buyIn not provided
+    // If room doesn't exist, use buyIn or default to 1000
+    let playerStack: number;
+    if (buyIn !== undefined && buyIn !== null && buyIn > 0) {
+      playerStack = buyIn;
+    } else if (state.maxBet && state.maxBet > 0) {
+      // Room exists - use existing table's maxBet as default
+      playerStack = state.maxBet;
+    } else {
+      // New room - use default
+      playerStack = 1000;
+    }
+    console.log(`🎰 Creating player with stack: ${playerStack} (buyIn received: ${buyIn}, buyIn type: ${typeof buyIn})`);
+
+    
+    // Use profile picture if provided, otherwise fallback to emoji
+    const avatar = profilePic || ['👨', '👩', '🧑', '👴', '👵'][state.players.length % 5];
+    
     const newPlayer: Player = {
       id: playerId,
       name: name || `Player ${state.players.length + 1}`,
-      avatar: ['👨', '👩', '🧑', '👴', '👵'][state.players.length % 5],
-      stack: 1000,
+      avatar: avatar,
+      stack: playerStack,
       seat: state.players.length,
       isDealer: state.players.length === 0,
       isTurn: false,
@@ -699,7 +879,7 @@ io.on('connection', (socket) => {
     moveToNextPlayer(state, roomCode);
   });
 
-  socket.on('player:rebuy', () => {
+  socket.on('player:rebuy', ({ buyIn }: { buyIn?: number } = {}) => {
     const roomCode = playerRooms.get(socket.id);
     if (!roomCode) return;
 
@@ -710,7 +890,10 @@ io.on('connection', (socket) => {
     const player = state.players.find(p => p.id === playerId);
     if (!player) return;
 
-    player.stack = 1000;
+    // Use buyIn from request, or use maxBet (which stores the buy-in amount), or default to 1000
+    const rebuyAmount = buyIn !== undefined && buyIn !== null ? buyIn : (state.maxBet || 1000);
+    console.log(`🔄 Rebuy: Setting stack to ${rebuyAmount} (buyIn: ${buyIn}, maxBet: ${state.maxBet})`);
+    player.stack = rebuyAmount;
 
     // Clear any remaining cards if they exist (reset state)
     const hasCards = state.players.some(p => p.holeCards && p.holeCards.length > 0) || state.community.length > 0;

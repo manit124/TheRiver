@@ -10,10 +10,10 @@ interface TableStore {
   isConnected: boolean;
   winnerInfo: { winnerName: string; potAmount: number; isSplit?: boolean; winnerNames?: string[] } | null;
   countdown: number | null;
-  connect: (roomCode: string, playerName: string) => void;
+  connect: (roomCode: string, playerName: string, buyInAmount?: number, smallBlind?: number, bigBlind?: number, profilePic?: string | null) => void;
   disconnect: () => void;
   sendAction: (action: ClientAction) => void;
-  rebuy: () => void;
+  rebuy: (buyIn?: number) => void;
   updateState: (state: TableState) => void;
   patchState: (patch: Partial<TableState>) => void;
   addHandHistory: (item: HandHistoryItem) => void;
@@ -34,8 +34,8 @@ export const useTableStore = create<TableStore>((set, get) => {
     winnerInfo: null,
     countdown: null,
 
-    connect: (roomCode: string, playerName: string) => {
-      console.log('🔌 Starting connection process...', { roomCode, playerName, socketUrl });
+    connect: (roomCode: string, playerName: string, buyInAmount?: number, smallBlind?: number, bigBlind?: number, profilePic?: string | null) => {
+      console.log('🔌 Starting connection process...', { roomCode, playerName, buyInAmount, smallBlind, bigBlind, profilePic, socketUrl });
       
       // Get or create socket
       socket = connectSocket(socketUrl);
@@ -74,8 +74,8 @@ export const useTableStore = create<TableStore>((set, get) => {
         set({ isConnected: true });
         // Join room after connection
         if (socket?.connected) {
-          console.log('📤 Emitting room:join', { roomCode, playerName });
-          socket.emit('room:join', { roomCode, name: playerName });
+          console.log('📤 Emitting room:join', { roomCode, playerName, buyIn: buyInAmount, smallBlind, bigBlind, profilePic });
+          socket.emit('room:join', { roomCode, name: playerName, buyIn: buyInAmount, smallBlind, bigBlind, profilePic });
         } else {
           console.error('❌ Socket not connected when trying to join');
         }
@@ -95,6 +95,15 @@ export const useTableStore = create<TableStore>((set, get) => {
       socket.on('table:state', (newState: TableState) => {
         const oldState = get().state;
         const potChanged = oldState ? newState.pot !== oldState.pot : false;
+        const currentPlayerId = get().playerId;
+        
+        // Log player stack information for debugging
+        if (currentPlayerId) {
+          const currentPlayer = newState.players.find(p => p.id === currentPlayerId);
+          if (currentPlayer) {
+            console.log(`🎯 Current player stack: ${currentPlayer.stack} (playerId: ${currentPlayerId})`);
+          }
+        }
         
         console.log('📥 Received table:state', {
           players: newState.players.length,
@@ -104,8 +113,10 @@ export const useTableStore = create<TableStore>((set, get) => {
           oldPot: oldState?.pot,
           communityCards: newState.community.length,
           toActPlayerId: newState.toActPlayerId,
-          playerBets: newState.players.map(p => ({ 
+          playerStacks: newState.players.map(p => ({ 
+            id: p.id,
             name: p.name,
+            stack: p.stack,
             currentBet: p.currentBet || 0
           }))
         });
@@ -288,8 +299,8 @@ export const useTableStore = create<TableStore>((set, get) => {
       emitPlayerAction(action);
     },
 
-    rebuy: () => {
-      emitRebuy();
+    rebuy: (buyIn?: number) => {
+      emitRebuy(buyIn);
     },
 
     updateState: (state: TableState) => {

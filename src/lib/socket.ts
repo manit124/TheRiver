@@ -78,9 +78,9 @@ export function emitPlayerAction(action: ClientAction): void {
   }
 }
 
-export function emitRebuy(): void {
+export function emitRebuy(buyIn?: number): void {
   if (socket?.connected) {
-    socket.emit('player:rebuy');
+    socket.emit('player:rebuy', { buyIn });
   }
 }
 

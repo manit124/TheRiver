@@ -1,7 +1,7 @@
 'use client';
 
 import { Player } from '@/types/poker';
-import { Avatar, AvatarFallback } from '@/components/ui/avatar';
+import { Avatar, AvatarFallback, AvatarImage } from '@/components/ui/avatar';
 import { Badge } from '@/components/ui/badge';
 import { PlayerHoleCards } from './PlayerHoleCards';
 import { formatCurrency } from '@/lib/utils';
@@ -34,7 +34,14 @@ export function Seat({ player, seatNumber, isActive, isCurrentPlayer }: SeatProp
     >
       <div className="relative">
         <Avatar className="h-12 w-12">
-          <AvatarFallback className="bg-accent/20 text-accent font-bold">{player.avatar}</AvatarFallback>
+          {player.avatar && player.avatar.startsWith('/') ? (
+            <>
+              <AvatarImage src={player.avatar} alt={player.name} />
+              <AvatarFallback className="bg-accent/20 text-accent font-bold">{player.name.charAt(0).toUpperCase()}</AvatarFallback>
+            </>
+          ) : (
+            <AvatarFallback className="bg-accent/20 text-accent font-bold">{player.avatar}</AvatarFallback>
+          )}
         </Avatar>
         {player.connected && (
           <div className="absolute -bottom-1 -right-1 h-3 w-3 bg-green-500 rounded-full border-2 border-gray-900" />

@@ -24,6 +24,7 @@ export type Street = 'preflop' | 'flop' | 'turn' | 'river' | 'showdown';
 export type TableState = {
   roomCode: string;
   game: 'texas' | 'omaha';
+  smallBlind: number;
   bigBlind: number;
   pot: number;
   street: Street;

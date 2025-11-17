@@ -102,14 +102,15 @@ export default function Home() {
   };
 
   const handleJoinTable = (table: any) => {
-    const buyInAmount = userChips >= table.maxBuyIn ? table.maxBuyIn : table.minBuyIn;
-    router.push(`/table/${table.id}?stakes=${table.stakes}&buyIn=${buyInAmount}&bigBlind=${table.bigBlind}&smallBlind=${table.smallBlind}&minBuyIn=${table.minBuyIn}&maxBuyIn=${table.maxBuyIn}`);
+    // Buy-in will be calculated on the table page based on user chips (clamped between min and max)
+    // Pass minBuyIn and maxBuyIn so the table page can calculate correctly
+    router.push(`/table/${table.id}?stakes=${table.stakes}&bigBlind=${table.bigBlind}&smallBlind=${table.smallBlind}&minBuyIn=${table.minBuyIn}&maxBuyIn=${table.maxBuyIn}`);
   };
 
   return (
     <div className="relative min-h-screen">
         {/* Title Section - Centered */}
-        <div id="home" className="h-screen flex items-center justify-center">
+        <div id="home" className="h-screen flex items-center justify-center relative z-10">
           <div className="text-center">
             <AnimatedText
               text="TheRiver"
@@ -123,7 +124,7 @@ export default function Home() {
         </div>
 
         {/* Poker Mode Grid - Below the fold */}
-        <div id="gamemodes" className="min-h-screen flex flex-col items-center justify-center px-1 py-3 relative">
+        <div id="gamemodes" className="min-h-screen flex flex-col items-center justify-center px-1 py-3 relative z-10">
           <PokerModeGrid onModeClick={handleModeClick} />
           
           {/* Action Buttons - Close to carousel */}
