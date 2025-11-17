@@ -16,9 +16,9 @@ export default function RootLayout({
   return (
     <html lang="en">
       <body className="antialiased bg-black">
-        <RetroGrid className="fixed inset-0" />
+        <RetroGrid className="fixed inset-0 z-[1]" />
         <NavHeader />
-        <div className="relative z-10 pt-20 pb-20 sm:pb-0">{children}</div>
+        <div className="relative z-[2] pt-20 pb-20 sm:pb-0">{children}</div>
       </body>
     </html>
   );

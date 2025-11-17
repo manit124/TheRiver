@@ -537,7 +537,7 @@ function TablePageContent() {
   if (!hasJoined || !playerId) {
     if (checkingAuth) {
       return (
-        <div className="min-h-screen text-white flex items-center justify-center">
+        <div className="min-h-screen text-white flex items-center justify-center relative z-10">
           <div className="text-center">
             <div className="text-lg font-mono mb-2">Loading...</div>
           </div>
@@ -549,7 +549,7 @@ function TablePageContent() {
     // Just show loading while handleJoin processes
     if (user && username) {
       return (
-        <div className="min-h-screen text-white flex items-center justify-center">
+        <div className="min-h-screen text-white flex items-center justify-center relative z-10">
           <div className="text-center">
             <div className="text-lg font-mono mb-2">Joining table...</div>
             <div className="text-sm text-white/60 font-mono">Processing buy-in...</div>
@@ -559,7 +559,7 @@ function TablePageContent() {
     }
 
     return (
-      <div className="min-h-screen text-white flex items-center justify-center px-4">
+      <div className="min-h-screen text-white flex items-center justify-center px-4 relative z-10">
         <div className="max-w-md w-full">
           <UICard className="bg-gradient-to-br from-[#0a0a0a] via-[#1a1a1a] to-[#0a0a0a] border-white/10 shadow-[0_0_30px_rgba(255,255,255,0.05)] font-mono">
             <CardHeader className="text-center">
@@ -691,11 +691,11 @@ function TablePageContent() {
 
 
   return (
-    <div className="h-screen text-white flex flex-col overflow-hidden relative">
+    <div className="h-screen text-white flex flex-col overflow-hidden relative bg-transparent">
       <div className="overflow-visible relative z-10">
         <TableTopBar roomCode={roomCode} />
       </div>
-      <div className="flex-1 relative overflow-hidden z-10">
+      <div className="flex-1 relative overflow-hidden z-10 bg-transparent">
         {/* Show player count and waiting message if needed */}
         {currentState.players.length < 2 && (
           <div className="absolute top-48 left-1/2 transform -translate-x-1/2 bg-gradient-to-br from-[#0a0a0a] via-[#1a1a1a] to-[#0a0a0a] border border-white/20 rounded-xl px-6 py-3 z-10 shadow-[0_0_30px_rgba(255,255,255,0.1)]">
