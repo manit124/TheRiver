@@ -28,7 +28,7 @@ export function PokerModeGrid({ onModeClick }: PokerModeGridProps) {
   return (
     <div className="w-full max-w-7xl mx-auto px-4">
       {/* Title */}
-      <div className="text-center mb-20">
+      <div className="text-center" style={{ marginBottom: '5rem', paddingBottom: '0' }}>
         <h2 className="text-5xl md:text-6xl font-bold text-white mb-6 font-mono tracking-tight">
           Choose Your Game
         </h2>
@@ -36,7 +36,7 @@ export function PokerModeGrid({ onModeClick }: PokerModeGridProps) {
       </div>
 
       {/* Modes - Card Grid Design */}
-      <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-6">
+      <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-6" style={{ marginTop: '0', paddingTop: '0' }}>
         {MODES.map((mode, index) => (
           <ModeCard
             key={mode.id}
