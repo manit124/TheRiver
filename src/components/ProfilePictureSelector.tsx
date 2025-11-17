@@ -11,6 +11,7 @@ interface ProfilePictureSelectorProps {
   onOpenChange: (open: boolean) => void;
   userId: string;
   onComplete: () => void;
+  isNewSignup?: boolean; // If true, cancel will delete account. If false, just close dialog.
 }
 
 // Profile picture options - images only
@@ -20,7 +21,7 @@ const POKER_AVATARS = [
   { id: 'profile3', name: 'Profile 3', type: 'image' as const, image: '/profile3.png' },
 ];
 
-export function ProfilePictureSelector({ open, onOpenChange, userId, onComplete }: ProfilePictureSelectorProps) {
+export function ProfilePictureSelector({ open, onOpenChange, userId, onComplete, isNewSignup = false }: ProfilePictureSelectorProps) {
   // Dialog size reducers - adjust these values to change dialog size
   // Width options: 'max-w-xs', 'max-w-sm', 'max-w-md', 'max-w-lg', 'max-w-xl', 'max-w-2xl', 'max-w-4xl' (default)
   // Width percentage: 'w-[50vw]', 'w-[60vw]', 'w-[70vw]', 'w-[80vw]' (default)
@@ -117,14 +118,13 @@ export function ProfilePictureSelector({ open, onOpenChange, userId, onComplete 
       // Close dialogs first
       onOpenChange(false);
       
-      // Call onComplete to notify parent that registration is complete
+      // Call onComplete to notify parent
       onComplete();
       
-      // Wait a bit longer to ensure database update is fully committed
-      // Then trigger a page refresh to update nav bar with new profile picture
+      // Reload page to update nav bar (needed for both new signups and profile updates)
       setTimeout(() => {
         window.location.reload();
-      }, 500);
+      }, 300);
     } catch (err: any) {
       setError(err.message || 'Failed to save profile picture');
     } finally {
@@ -133,9 +133,9 @@ export function ProfilePictureSelector({ open, onOpenChange, userId, onComplete 
   };
 
   const handleDialogClose = async (open: boolean) => {
-    if (!open && !profilePictureSaved) {
-      // User is trying to close without selecting a profile picture
-      // Delete the user account and profile
+    if (!open && !profilePictureSaved && isNewSignup) {
+      // User is trying to close without selecting a profile picture during NEW SIGNUP
+      // Delete the user account and profile only if this is a new signup
       try {
         const supabase = createClient();
         
@@ -171,6 +171,7 @@ export function ProfilePictureSelector({ open, onOpenChange, userId, onComplete 
       }
     }
     
+    // For existing users changing profile pic, just close the dialog
     onOpenChange(open);
   };
 

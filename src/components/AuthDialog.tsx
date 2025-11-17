@@ -598,6 +598,7 @@ export function AuthDialog({ open, onOpenChange }: AuthDialogProps) {
             onOpenChange(false);
             setNewUserId(null);
           }}
+          isNewSignup={true}
         />
       )}
     </Dialog>
