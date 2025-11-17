@@ -111,38 +111,111 @@ function TablePageContent() {
     
     // If joining by code (no URL params), connect first to get table settings
     if (!hasUrlParams && !checkingAuth && user && !isConnected && !hasJoined && !tableSettingsFetched) {
-      // Connect to socket to get table state
-      const tempSocket = require('socket.io-client')(process.env.NEXT_PUBLIC_SOCKET_URL || 'http://localhost:5050');
+      let tempSocket: any = null;
+      let timeoutId: NodeJS.Timeout | null = null;
       
-      tempSocket.on('connect', () => {
-        // Join room to get state (we'll disconnect after)
-        tempSocket.emit('room:join', { roomCode, name: 'settings_check', buyIn: 0 });
-      });
-      
-      tempSocket.on('table:state', (tableState: any) => {
-        // Got table state - extract settings
-        if (tableState.maxBet) {
-          const maxBuyIn = tableState.maxBet;
-          const minBuyIn = Math.floor(maxBuyIn * 0.2); // 20% of max as minimum
-          console.log(`📋 Table settings from server: minBuyIn=${minBuyIn}, maxBuyIn=${maxBuyIn}`);
-          // Store table settings
-          setTableMinBuyIn(minBuyIn);
-          setTableMaxBuyIn(maxBuyIn);
+      const fetchTableSettings = async () => {
+        try {
+          // Import socket.io-client dynamically
+          const { io } = await import('socket.io-client');
+          const socketUrl = process.env.NEXT_PUBLIC_SOCKET_URL || 'http://localhost:5050';
+          
+          console.log(`🔍 Fetching table settings for room: ${roomCode} from ${socketUrl}`);
+          
+          tempSocket = io(socketUrl, {
+            transports: ['websocket', 'polling'],
+            reconnection: false,
+            timeout: 10000,
+            forceNew: true,
+          });
+          
+          tempSocket.on('connect', () => {
+            console.log('✅ Temp socket connected for settings check');
+            // Join room to get state (we'll disconnect after)
+            tempSocket.emit('room:join', { roomCode, name: 'settings_check', buyIn: 0 });
+          });
+          
+          tempSocket.on('table:state', (tableState: any) => {
+            console.log('📋 Received table state for settings:', tableState);
+            // Got table state - extract settings
+            if (tableState.maxBet) {
+              const maxBuyIn = tableState.maxBet;
+              const minBuyIn = Math.floor(maxBuyIn * 0.2); // 20% of max as minimum
+              console.log(`📋 Table settings from server: minBuyIn=${minBuyIn}, maxBuyIn=${maxBuyIn}`);
+              // Store table settings
+              setTableMinBuyIn(minBuyIn);
+              setTableMaxBuyIn(maxBuyIn);
+              setTableSettingsFetched(true);
+            } else {
+              // If no maxBet, use defaults
+              console.log('⚠️ No maxBet found, using defaults');
+              setTableMinBuyIn(200);
+              setTableMaxBuyIn(1000);
+              setTableSettingsFetched(true);
+            }
+            // Disconnect after getting state
+            if (timeoutId) clearTimeout(timeoutId);
+            setTimeout(() => {
+              if (tempSocket) {
+                tempSocket.disconnect();
+                tempSocket = null;
+              }
+            }, 100);
+          });
+          
+          tempSocket.on('error', (error: any) => {
+            console.error('❌ Error getting table settings:', error);
+            // Use defaults on error
+            setTableMinBuyIn(200);
+            setTableMaxBuyIn(1000);
+            setTableSettingsFetched(true);
+            if (tempSocket) {
+              tempSocket.disconnect();
+              tempSocket = null;
+            }
+          });
+          
+          tempSocket.on('connect_error', (error: any) => {
+            console.error('❌ Connection error getting table settings:', error);
+            // Use defaults on connection error
+            setTableMinBuyIn(200);
+            setTableMaxBuyIn(1000);
+            setTableSettingsFetched(true);
+            if (tempSocket) {
+              tempSocket.disconnect();
+              tempSocket = null;
+            }
+          });
+          
+          // Timeout after 5 seconds
+          timeoutId = setTimeout(() => {
+            console.log('⏱️ Timeout fetching table settings, using defaults');
+            setTableMinBuyIn(200);
+            setTableMaxBuyIn(1000);
+            setTableSettingsFetched(true);
+            if (tempSocket) {
+              tempSocket.disconnect();
+              tempSocket = null;
+            }
+          }, 5000);
+          
+        } catch (error) {
+          console.error('❌ Failed to fetch table settings:', error);
+          // Use defaults on error
+          setTableMinBuyIn(200);
+          setTableMaxBuyIn(1000);
           setTableSettingsFetched(true);
         }
-        // Disconnect after getting state
-        setTimeout(() => {
-          tempSocket.disconnect();
-        }, 100);
-      });
+      };
       
-      tempSocket.on('error', (error: any) => {
-        console.error('Error getting table settings:', error);
-        tempSocket.disconnect();
-      });
+      fetchTableSettings();
       
       return () => {
-        tempSocket.disconnect();
+        if (timeoutId) clearTimeout(timeoutId);
+        if (tempSocket) {
+          tempSocket.disconnect();
+          tempSocket = null;
+        }
       };
     }
   }, [checkingAuth, user, isConnected, hasJoined, tableSettingsFetched, searchParams, roomCode]);
@@ -152,12 +225,30 @@ function TablePageContent() {
     const hasUrlParams = searchParams.get('minBuyIn') || searchParams.get('maxBuyIn');
     const isReady = hasUrlParams || tableSettingsFetched;
     
+    // If joining by code and settings not fetched yet, wait a bit more
+    // But don't wait forever - proceed after 6 seconds even if settings not fetched
+    if (!hasUrlParams && !tableSettingsFetched) {
+      const timeout = setTimeout(() => {
+        console.log('⏱️ Proceeding with join even though settings not fetched yet');
+        if (!checkingAuth && user && username && !hasJoined) {
+          // Use defaults and proceed
+          if (tableMinBuyIn === 0 && tableMaxBuyIn === 0) {
+            setTableMinBuyIn(200);
+            setTableMaxBuyIn(1000);
+            setTableSettingsFetched(true);
+          }
+        }
+      }, 6000);
+      
+      return () => clearTimeout(timeout);
+    }
+    
     if (!checkingAuth && user && username && !hasJoined && isReady) {
       // Auto-join with chip deduction
       handleJoin();
     }
     // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [checkingAuth, user, username, hasJoined, tableSettingsFetched]);
+  }, [checkingAuth, user, username, hasJoined, tableSettingsFetched, tableMinBuyIn, tableMaxBuyIn, searchParams]);
 
   // Debug countdown changes
   useEffect(() => {
