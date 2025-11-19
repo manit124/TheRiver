@@ -145,12 +145,17 @@ function RebuyDialogContent({ open, onOpenChange, onRebuy, buyInAmount = 1000, m
             </div>
 
             <div className="flex gap-0">
-              <InteractiveHoverButton
+              <button
                 onClick={handleRebuy}
-                text={canRebuy ? "Rebuy" : "Insufficient Chips"}
-                className="flex-1 rounded-r-none min-h-12 py-6"
                 disabled={!canRebuy}
-              />
+                className={`flex-1 rounded-r-none min-h-12 py-6 font-mono font-semibold transition-all duration-200 ${
+                  canRebuy
+                    ? 'bg-green-500/20 hover:bg-green-500/30 border border-green-400/30 text-green-400 hover:text-green-300 cursor-pointer'
+                    : 'bg-white/5 border border-white/10 text-white/30 cursor-not-allowed opacity-60'
+                }`}
+              >
+                {canRebuy ? "Rebuy" : "Insufficient Chips"}
+              </button>
               <Button 
                 variant="outline" 
                 onClick={handleLeave}

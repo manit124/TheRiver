@@ -29,9 +29,15 @@ function LeaveTableDialogContent({ open, onOpenChange, userId, originalBuyIn }: 
     setLoading(true);
     
     try {
-      // Get player's current stack
+      // Get player's current stack from game state
       const currentPlayer = state?.players.find((p) => p.id === playerId);
       const remainingStack = currentPlayer?.stack || 0;
+      
+      console.log(`🚪 Leaving table - Player ID: ${playerId}, Remaining stack: ${remainingStack}, Original buy-in: ${originalBuyIn}`);
+      console.log(`📊 Current game state:`, {
+        players: state?.players.map(p => ({ id: p.id, name: p.name, stack: p.stack })),
+        currentPlayer: currentPlayer ? { id: currentPlayer.id, name: currentPlayer.name, stack: currentPlayer.stack } : null
+      });
 
       // Use originalBuyIn prop if provided, otherwise try to get from URL params
       let actualBuyIn = originalBuyIn || 0;
@@ -40,6 +46,7 @@ function LeaveTableDialogContent({ open, onOpenChange, userId, originalBuyIn }: 
         const minBuyIn = parseInt(searchParams.get('minBuyIn') || '0');
         const maxBuyIn = parseInt(searchParams.get('maxBuyIn') || '0');
         actualBuyIn = buyInAmount > 0 ? buyInAmount : (minBuyIn > 0 ? minBuyIn : maxBuyIn);
+        console.log(`⚠️ Original buy-in not provided, using fallback: ${actualBuyIn}`);
       }
 
       // Add remaining stack back to user's profile chips
@@ -65,17 +72,28 @@ function LeaveTableDialogContent({ open, onOpenChange, userId, originalBuyIn }: 
           const newChips = profile.chips + remainingStack;
           const netProfit = remainingStack - actualBuyIn;
           
+          console.log(`💰 Chip return calculation:`, {
+            currentProfileChips: profile.chips,
+            remainingStack: remainingStack,
+            originalBuyIn: actualBuyIn,
+            newChips: newChips,
+            netProfit: netProfit
+          });
+          
           const { error: updateError } = await supabase
             .from('profiles')
             .update({ chips: newChips })
             .eq('id', userId);
 
           if (updateError) {
-            console.error('Error adding chips back:', updateError);
+            console.error('❌ Error adding chips back:', updateError);
+            alert(`Failed to return chips: ${updateError.message}. Your chips may not have been returned.`);
             // Still disconnect even if update fails
           } else {
-            console.log(`💰 Returning ${remainingStack} chips. Profile chips: ${profile.chips} → ${newChips} (buy-in was ${actualBuyIn}, net profit: ${netProfit >= 0 ? '+' : ''}${netProfit})`);
+            console.log(`✅ Successfully returned ${remainingStack} chips. Profile chips: ${profile.chips} → ${newChips} (buy-in was ${actualBuyIn}, net profit: ${netProfit >= 0 ? '+' : ''}${netProfit})`);
           }
+        } else {
+          console.error('❌ Profile not found when trying to return chips');
         }
       }
 

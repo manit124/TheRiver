@@ -65,8 +65,52 @@ export function JoinByCodeDialog({ open, onOpenChange }: JoinByCodeDialogProps) 
         return;
       }
 
-      // Navigate to table - chip validation will happen on the table page
-      router.push(`/table/${code.toUpperCase()}`);
+      // Normalize code to uppercase
+      const normalizedCode = code.toUpperCase();
+      
+      // Check if room exists before navigating
+      const { io } = await import('socket.io-client');
+      const socketUrl = process.env.NEXT_PUBLIC_SOCKET_URL || 'http://localhost:5050';
+      
+      const checkSocket = io(socketUrl, {
+        transports: ['websocket', 'polling'],
+        reconnection: false,
+        timeout: 5000,
+        forceNew: true,
+      });
+
+      const roomExists = await new Promise<boolean>((resolve) => {
+        const timeout = setTimeout(() => {
+          checkSocket.disconnect();
+          resolve(false);
+        }, 5000);
+
+        checkSocket.on('connect', () => {
+          checkSocket.emit('room:check', { roomCode: normalizedCode });
+        });
+
+        checkSocket.on('room:exists', ({ exists }: { exists: boolean }) => {
+          clearTimeout(timeout);
+          checkSocket.disconnect();
+          resolve(exists);
+        });
+
+        checkSocket.on('connect_error', () => {
+          clearTimeout(timeout);
+          checkSocket.disconnect();
+          resolve(false);
+        });
+      });
+
+      if (!roomExists) {
+        setError(`Room code "${normalizedCode}" does not exist. Please check the code and try again.`);
+        setLoading(false);
+        return;
+      }
+
+      // Room exists - navigate to table
+      console.log(`🔗 Joining table with code: ${normalizedCode}`);
+      router.push(`/table/${normalizedCode}`);
       onOpenChange(false);
       setCode('');
     } catch (err: any) {

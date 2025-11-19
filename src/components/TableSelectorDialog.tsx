@@ -162,15 +162,67 @@ export function TableSelectorDialog({
 
     // Generate random room code
     const roomCode = generateRoomCode();
-    // Buy-in will be calculated on the table page based on user chips (clamped between min and max)
-    // Pass minBuyIn and maxBuyIn so the table page can calculate correctly
+    
+    // Create room on server with the selected table's settings
+    const { connectSocket, emitRoomCreate } = await import('@/lib/socket');
+    const socketUrl = process.env.NEXT_PUBLIC_SOCKET_URL || 'http://localhost:5050';
+    const socket = connectSocket(socketUrl);
 
-    if (onJoinTable) {
-      onJoinTable({ ...selectedTable, id: roomCode });
+    const settings = {
+      roomCode,
+      game: gameType,
+      smallBlind: selectedTable.smallBlind,
+      bigBlind: selectedTable.bigBlind,
+      buyIn: selectedTable.maxBuyIn,
+      maxPlayers: 6,
+      isPrivate: false,
+    };
+
+    // Handle connection and emit room:create
+    const handleConnection = () => {
+      try {
+        emitRoomCreate(settings);
+        console.log('📤 Room create emitted:', roomCode);
+        
+        if (onJoinTable) {
+          onJoinTable({ ...selectedTable, id: roomCode });
+        } else {
+          router.push(`/table/${roomCode}?stakes=${selectedTable.stakes}&bigBlind=${selectedTable.bigBlind}&smallBlind=${selectedTable.smallBlind}&minBuyIn=${selectedTable.minBuyIn}&maxBuyIn=${selectedTable.maxBuyIn}`);
+        }
+        onOpenChange(false);
+      } catch (error) {
+        console.error('❌ Error creating room:', error);
+        alert('Failed to create room. Please make sure the server is running.');
+      }
+    };
+
+    // If already connected, emit immediately
+    if (socket.connected) {
+      handleConnection();
     } else {
-      router.push(`/table/${roomCode}?stakes=${selectedTable.stakes}&bigBlind=${selectedTable.bigBlind}&smallBlind=${selectedTable.smallBlind}&minBuyIn=${selectedTable.minBuyIn}&maxBuyIn=${selectedTable.maxBuyIn}`);
+      // Wait for connection with timeout
+      const connectTimeout = setTimeout(() => {
+        console.error('❌ Connection timeout');
+        alert('Connection timeout. Please make sure the server is running.');
+      }, 10000);
+
+      const onConnect = () => {
+        clearTimeout(connectTimeout);
+        socket.off('connect', onConnect);
+        handleConnection();
+      };
+
+      socket.on('connect', onConnect);
+
+      const onError = (error: Error) => {
+        clearTimeout(connectTimeout);
+        socket.off('connect_error', onError);
+        console.error('❌ Connection error:', error);
+        alert('Failed to connect to server. Please make sure the server is running.');
+      };
+
+      socket.on('connect_error', onError);
     }
-    onOpenChange(false);
   };
 
   const canJoin = userChips >= selectedTable.minBuyIn;

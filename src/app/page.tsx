@@ -8,6 +8,7 @@ import { InteractiveHoverButton } from '@/components/ui/interactive-hover-button
 import { TexasHoldemRulesDialog } from '@/components/TexasHoldemRulesDialog';
 import { AuthDialog } from '@/components/AuthDialog';
 import { TableSelectorDialog } from '@/components/TableSelectorDialog';
+import { CreateCustomTableDialog } from '@/components/CreateCustomTableDialog';
 import { motion } from 'framer-motion';
 import { useState, useEffect, useRef } from 'react';
 import { Mode } from '@/data/modes';
@@ -25,6 +26,7 @@ export default function Home() {
   const joinByCodeButtonMover = 'translateX(0px)';
   const [authDialogOpen, setAuthDialogOpen] = useState(false);
   const [tableSelectorOpen, setTableSelectorOpen] = useState(false);
+  const [createCustomTableOpen, setCreateCustomTableOpen] = useState(false);
   const [selectedGameType, setSelectedGameType] = useState<string>('texas');
   const [userChips, setUserChips] = useState<number>(0);
   const [user, setUser] = useState<any>(null);
@@ -57,13 +59,25 @@ export default function Home() {
   // Listen for auth state changes to navigate after login
   useEffect(() => {
     const supabase = createClient();
-    const { data: { subscription } } = supabase.auth.onAuthStateChange((_event, session) => {
+    const { data: { subscription } } = supabase.auth.onAuthStateChange(async (_event, session) => {
       if (session?.user && pendingModeRef.current) {
         // User just logged in and we have a pending mode to navigate to
         const mode = pendingModeRef.current;
         pendingModeRef.current = null;
         setAuthDialogOpen(false);
         setUser(session.user);
+        
+        // Check chips and show recovery dialog if needed
+        const { data: profile } = await supabase
+          .from('profiles')
+          .select('chips')
+          .eq('id', session.user.id)
+          .single();
+        
+        if (profile?.chips) {
+          setUserChips(profile.chips);
+        }
+        
         // Open table selector instead of navigating
         setSelectedGameType(mode.id);
         setTableSelectorOpen(true);
@@ -101,10 +115,66 @@ export default function Home() {
     }
   };
 
-  const handleJoinTable = (table: any) => {
-    // Buy-in will be calculated on the table page based on user chips (clamped between min and max)
-    // Pass minBuyIn and maxBuyIn so the table page can calculate correctly
-    router.push(`/table/${table.id}?stakes=${table.stakes}&bigBlind=${table.bigBlind}&smallBlind=${table.smallBlind}&minBuyIn=${table.minBuyIn}&maxBuyIn=${table.maxBuyIn}`);
+  const handleJoinTable = async (table: any) => {
+    // Generate a unique room code for this table
+    const { generateRoomCode } = await import('@/lib/utils');
+    const roomCode = generateRoomCode();
+    
+    // Create room on server with the table's settings
+    const { connectSocket, emitRoomCreate } = await import('@/lib/socket');
+    const socketUrl = process.env.NEXT_PUBLIC_SOCKET_URL || 'http://localhost:5050';
+    const socket = connectSocket(socketUrl);
+
+    const settings = {
+      roomCode,
+      game: selectedGameType || 'texas',
+      smallBlind: table.smallBlind,
+      bigBlind: table.bigBlind,
+      buyIn: table.maxBuyIn,
+      maxPlayers: 6,
+      isPrivate: false,
+    };
+
+    // Handle connection and emit room:create
+    const handleConnection = () => {
+      try {
+        emitRoomCreate(settings);
+        console.log('📤 Room create emitted:', roomCode);
+        // Navigate to table with the table's settings
+        router.push(`/table/${roomCode}?stakes=${table.stakes}&bigBlind=${table.bigBlind}&smallBlind=${table.smallBlind}&minBuyIn=${table.minBuyIn}&maxBuyIn=${table.maxBuyIn}`);
+      } catch (error) {
+        console.error('❌ Error creating room:', error);
+        alert('Failed to create room. Please make sure the server is running.');
+      }
+    };
+
+    // If already connected, emit immediately
+    if (socket.connected) {
+      handleConnection();
+    } else {
+      // Wait for connection with timeout
+      const connectTimeout = setTimeout(() => {
+        console.error('❌ Connection timeout');
+        alert('Connection timeout. Please make sure the server is running.');
+      }, 10000);
+
+      const onConnect = () => {
+        clearTimeout(connectTimeout);
+        socket.off('connect', onConnect);
+        handleConnection();
+      };
+
+      socket.on('connect', onConnect);
+
+      const onError = (error: Error) => {
+        clearTimeout(connectTimeout);
+        socket.off('connect_error', onError);
+        console.error('❌ Connection error:', error);
+        alert('Failed to connect to server. Please make sure the server is running.');
+      };
+
+      socket.on('connect_error', onError);
+    }
   };
 
   return (
@@ -136,7 +206,7 @@ export default function Home() {
           >
             <div style={{ transform: createTableButtonMover }}>
               <InteractiveHoverButton
-                onClick={() => router.push('/lobby')}
+                onClick={() => setCreateCustomTableOpen(true)}
                 text="Create Table"
               />
             </div>
@@ -150,6 +220,7 @@ export default function Home() {
         </div>
 
         <JoinByCodeDialog open={joinDialogOpen} onOpenChange={setJoinDialogOpen} />
+        <CreateCustomTableDialog open={createCustomTableOpen} onOpenChange={setCreateCustomTableOpen} />
         <TexasHoldemRulesDialog open={texasRulesDialogOpen} onOpenChange={setTexasRulesDialogOpen} />
         <AuthDialog open={authDialogOpen} onOpenChange={setAuthDialogOpen} />
         <TableSelectorDialog 

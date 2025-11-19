@@ -101,10 +101,67 @@ function LobbyPageContent() {
       return;
     }
 
-    // Buy-in will be calculated on the table page based on user chips (clamped between min and max)
-    // Pass minBuyIn and maxBuyIn so the table page can calculate correctly
-    const roomCode = table.id;
-    router.push(`/table/${roomCode}?stakes=${table.stakes}&bigBlind=${table.bigBlind}&smallBlind=${table.smallBlind}&minBuyIn=${table.minBuyIn}&maxBuyIn=${table.maxBuyIn}`);
+    // Generate a unique room code for this table
+    const { generateRoomCode } = await import('@/lib/utils');
+    const roomCode = generateRoomCode();
+    
+    // Create room on server with the table's fixed settings
+    const { connectSocket, emitRoomCreate } = await import('@/lib/socket');
+    const socketUrl = process.env.NEXT_PUBLIC_SOCKET_URL || 'http://localhost:5050';
+    const socket = connectSocket(socketUrl);
+
+    const settings = {
+      roomCode,
+      game: 'texas',
+      smallBlind: table.smallBlind,
+      bigBlind: table.bigBlind,
+      buyIn: table.maxBuyIn,
+      maxPlayers: 6,
+      isPrivate: false,
+    };
+
+    // Handle connection and emit room:create
+    const handleConnection = () => {
+      try {
+        emitRoomCreate(settings);
+        console.log('📤 Room create emitted:', roomCode);
+        // Navigate to table with the table's settings
+        router.push(`/table/${roomCode}?stakes=${table.stakes}&bigBlind=${table.bigBlind}&smallBlind=${table.smallBlind}&minBuyIn=${table.minBuyIn}&maxBuyIn=${table.maxBuyIn}`);
+      } catch (error) {
+        console.error('❌ Error creating room:', error);
+        alert('Failed to create room. Please make sure the server is running.');
+      }
+    };
+
+    // If already connected, emit immediately
+    if (socket.connected) {
+      handleConnection();
+    } else {
+      // Wait for connection with timeout
+      const connectTimeout = setTimeout(() => {
+        console.error('❌ Connection timeout');
+        alert('Connection timeout. Please make sure the server is running at ' + socketUrl);
+      }, 10000); // 10 second timeout
+
+      // Remove listener after first connection
+      const onConnect = () => {
+        clearTimeout(connectTimeout);
+        socket.off('connect', onConnect);
+        handleConnection();
+      };
+
+      socket.on('connect', onConnect);
+
+      // Also handle connection errors
+      const onError = (error: Error) => {
+        clearTimeout(connectTimeout);
+        socket.off('connect_error', onError);
+        console.error('❌ Connection error:', error);
+        alert('Failed to connect to server. Please make sure the server is running at ' + socketUrl);
+      };
+
+      socket.on('connect_error', onError);
+    }
   };
 
   const canJoinTable = (table: FixedTable) => {

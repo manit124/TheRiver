@@ -753,25 +753,54 @@ io.on('connection', (socket) => {
   console.log('Client connected:', socket.id);
 
   socket.on('room:create', (settings: any) => {
-    const roomCode = settings.roomCode || Math.random().toString(36).substring(2, 8).toUpperCase();
+    // Normalize room code to uppercase
+    const roomCode = (settings.roomCode || Math.random().toString(36).substring(2, 8)).toUpperCase();
+    console.log(`🏗️ Creating room: ${roomCode} with settings:`, settings);
+    
+    // Check if room already exists
+    if (rooms.has(roomCode)) {
+      console.warn(`⚠️ Room ${roomCode} already exists, updating settings`);
+      const existingState = rooms.get(roomCode);
+      if (existingState) {
+        // Update settings if provided
+        if (settings.smallBlind) existingState.smallBlind = settings.smallBlind;
+        if (settings.bigBlind) existingState.bigBlind = settings.bigBlind;
+        if (settings.buyIn) existingState.maxBet = settings.buyIn;
+        if (settings.game) existingState.game = settings.game;
+      }
+      socket.emit('room:created', { roomCode });
+      return;
+    }
+    
     const state = createInitialState(roomCode, settings);
     rooms.set(roomCode, state);
+    console.log(`✅ Room ${roomCode} created successfully`);
     socket.emit('room:created', { roomCode });
   });
 
+  // Check if room exists
+  socket.on('room:check', ({ roomCode }: { roomCode: string }) => {
+    const normalizedRoomCode = roomCode.toUpperCase();
+    const exists = rooms.has(normalizedRoomCode);
+    console.log(`🔍 Room check: ${normalizedRoomCode} exists: ${exists}`);
+    socket.emit('room:exists', { roomCode: normalizedRoomCode, exists });
+  });
+
   socket.on('room:join', ({ roomCode, name, buyIn, smallBlind, bigBlind, profilePic }: { roomCode: string; name: string; buyIn?: number; smallBlind?: number; bigBlind?: number; profilePic?: string | null }) => {
-    console.log(`📥 room:join received:`, { roomCode, name, buyIn, smallBlind, bigBlind, buyInType: typeof buyIn });
-    let state = rooms.get(roomCode);
+    // Normalize room code to uppercase for consistency
+    const normalizedRoomCode = roomCode.toUpperCase();
+    console.log(`📥 room:join received:`, { roomCode, normalizedRoomCode, name, buyIn, smallBlind, bigBlind, buyInType: typeof buyIn });
+    let state = rooms.get(normalizedRoomCode);
+    
+    // Only allow joining existing rooms - don't create new rooms on join
     if (!state) {
-      // Use values from client if provided, otherwise use defaults
-      // Use nullish coalescing to only default if value is null/undefined
-      const defaultBuyIn = buyIn !== undefined && buyIn !== null ? buyIn : 1000;
-      const defaultSmallBlind = smallBlind !== undefined && smallBlind !== null ? smallBlind : 5;
-      const defaultBigBlind = bigBlind !== undefined && bigBlind !== null ? bigBlind : 10;
-      console.log(`🏗️ Creating new room state with buyIn: ${defaultBuyIn}, smallBlind: ${defaultSmallBlind}, bigBlind: ${defaultBigBlind}`);
-      state = createInitialState(roomCode, { game: 'texas', smallBlind: defaultSmallBlind, bigBlind: defaultBigBlind, buyIn: defaultBuyIn });
-      rooms.set(roomCode, state);
-    } else {
+      console.error(`❌ Room ${normalizedRoomCode} does not exist. Cannot join.`);
+      socket.emit('error', { message: `Room ${normalizedRoomCode} does not exist. Please check the room code.` });
+      return;
+    }
+    
+    // Room exists - update settings if needed
+    if (state) {
       // If room exists but blinds weren't set, update them from client
       if (smallBlind !== undefined && smallBlind !== null && !state.smallBlind) {
         state.smallBlind = smallBlind;
@@ -800,7 +829,7 @@ io.on('connection', (socket) => {
       if (buyIn !== undefined && buyIn !== null && buyIn > 0) {
         existingPlayer.stack = buyIn;
       }
-      io.to(roomCode).emit('table:state', state);
+      io.to(normalizedRoomCode).emit('table:state', state);
       socket.emit('player:id', { playerId });
       return;
     }
@@ -843,19 +872,21 @@ io.on('connection', (socket) => {
     };
 
     state.players.push(newPlayer);
-    playerRooms.set(socket.id, roomCode);
-    socket.join(roomCode);
+    playerRooms.set(socket.id, normalizedRoomCode);
+    socket.join(normalizedRoomCode);
     socket.emit('player:id', { playerId });
 
     // Check if game is in progress
     const gameInProgress = state.players.some(p => p.holeCards && p.holeCards.length > 0) ||
                           state.toActPlayerId || state.pot > 0 || state.community.length > 0;
 
+    console.log(`✅ Player ${name} joined room ${normalizedRoomCode}. Total players: ${state.players.length}`);
+
     // When 2nd player joins, start the game immediately
     if (state.players.length >= 2 && !gameInProgress) {
-      startHand(state, roomCode);
+      startHand(state, normalizedRoomCode);
     } else {
-      io.to(roomCode).emit('table:state', state);
+      io.to(normalizedRoomCode).emit('table:state', state);
     }
   });
 

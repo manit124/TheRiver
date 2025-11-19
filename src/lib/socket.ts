@@ -53,10 +53,12 @@ export function disconnectSocket(): void {
   }
 }
 
-export function emitRoomJoin(roomCode: string, name: string): void {
+export function emitRoomJoin(roomCode: string, name: string, buyIn?: number, smallBlind?: number, bigBlind?: number, profilePic?: string | null): void {
   if (socket?.connected) {
-    console.log('📤 emitRoomJoin called:', { roomCode, name });
-    socket.emit('room:join', { roomCode, name });
+    // Normalize room code to uppercase
+    const normalizedRoomCode = roomCode.toUpperCase();
+    console.log('📤 emitRoomJoin called:', { roomCode, normalizedRoomCode, name, buyIn, smallBlind, bigBlind, profilePic });
+    socket.emit('room:join', { roomCode: normalizedRoomCode, name, buyIn, smallBlind, bigBlind, profilePic });
   } else {
     console.warn('⚠️ Socket not connected, cannot join room');
   }

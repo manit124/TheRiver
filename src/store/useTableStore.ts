@@ -63,8 +63,13 @@ export const useTableStore = create<TableStore>((set, get) => {
       });
 
       // Handle general socket errors
-      socket.on('error', (error) => {
+      socket.on('error', (error: any) => {
         console.error('❌ Socket error:', error);
+        // If error message indicates room doesn't exist, reset hasJoined
+        if (error?.message && error.message.includes('does not exist')) {
+          set({ isConnected: false });
+          alert(error.message);
+        }
         // Don't disconnect on error, let reconnection handle it
       });
 
@@ -72,10 +77,11 @@ export const useTableStore = create<TableStore>((set, get) => {
       const handleConnect = () => {
         console.log('✅ Socket connected, socket ID:', socket?.id);
         set({ isConnected: true });
-        // Join room after connection
+        // Join room after connection - normalize room code to uppercase
         if (socket?.connected) {
-          console.log('📤 Emitting room:join', { roomCode, playerName, buyIn: buyInAmount, smallBlind, bigBlind, profilePic });
-          socket.emit('room:join', { roomCode, name: playerName, buyIn: buyInAmount, smallBlind, bigBlind, profilePic });
+          const normalizedRoomCode = roomCode.toUpperCase();
+          console.log('📤 Emitting room:join', { roomCode, normalizedRoomCode, playerName, buyIn: buyInAmount, smallBlind, bigBlind, profilePic });
+          socket.emit('room:join', { roomCode: normalizedRoomCode, name: playerName, buyIn: buyInAmount, smallBlind, bigBlind, profilePic });
         } else {
           console.error('❌ Socket not connected when trying to join');
         }
@@ -121,6 +127,16 @@ export const useTableStore = create<TableStore>((set, get) => {
           }))
         });
         
+        // Clear winner info if there's only one player or no pot (new hand starting)
+        // Only clear if we're not in the middle of showing a winner (pot > 0 means a hand was played)
+        if (newState.players.length < 2 || (newState.pot === 0 && newState.street === 'preflop' && !newState.toActPlayerId)) {
+          const currentWinnerInfo = get().winnerInfo;
+          if (currentWinnerInfo) {
+            console.log('🧹 Clearing winner info - only one player or new hand starting');
+            set({ winnerInfo: null });
+          }
+        }
+        
         // Log if pot changed significantly
         if (potChanged && oldState) {
           console.log(`💰💰💰 POT CHANGED: ${oldState.pot} → ${newState.pot} (difference: ${newState.pot - oldState.pot})`);
@@ -147,12 +163,18 @@ export const useTableStore = create<TableStore>((set, get) => {
           const filteredPlayers = currentState.players.filter((p) => p.id !== data.playerId);
           // Only update if player was actually removed (to avoid unnecessary updates)
           if (filteredPlayers.length !== currentState.players.length) {
+            // Clear winner info if only one player remains
+            const shouldClearWinner = filteredPlayers.length < 2;
             set({
               state: {
                 ...currentState,
                 players: filteredPlayers,
               },
+              winnerInfo: shouldClearWinner ? null : get().winnerInfo,
             });
+            if (shouldClearWinner) {
+              console.log('🧹 Clearing winner info - only one player remaining');
+            }
             console.log(`✅ Removed player ${data.playerId}. Remaining: ${filteredPlayers.length}`);
           }
         }
@@ -219,6 +241,17 @@ export const useTableStore = create<TableStore>((set, get) => {
         
         const history = data.history; // Store in const after type guard
         const currentState = get().state;
+        
+        // Only set winner info if there are at least 2 players and a pot was won
+        if (!currentState || currentState.players.length < 2 || history.pot === 0) {
+          console.log('⚠️ Not setting winner info - insufficient players or no pot');
+          set((state) => ({
+            handHistory: [...state.handHistory, history],
+            winnerInfo: null, // Clear any existing winner info
+          }));
+          return;
+        }
+        
         const winnerIds = history.winningPlayerIds;
         const isSplit = winnerIds.length > 1;
         

@@ -26,7 +26,8 @@ function TablePageContent() {
   const params = useParams();
   const router = useRouter();
   const searchParams = useSearchParams();
-  const roomCode = params.roomCode as string;
+  // Normalize room code to uppercase to ensure consistency
+  const roomCode = (params.roomCode as string)?.toUpperCase() || '';
   const [playerName, setPlayerName] = useState('');
   const [hasJoined, setHasJoined] = useState(false);
   const [leaveDialogOpen, setLeaveDialogOpen] = useState(false);
@@ -38,6 +39,7 @@ function TablePageContent() {
   const [checkingAuth, setCheckingAuth] = useState(true);
   const [insufficientChipsDialogOpen, setInsufficientChipsDialogOpen] = useState(false);
   const [requiredChips, setRequiredChips] = useState<number>(0);
+  const [currentChipsForDialog, setCurrentChipsForDialog] = useState<number>(0);
   const [originalBuyIn, setOriginalBuyIn] = useState<number>(0); // Track original buy-in for net profit calculation
   const [tableSettingsFetched, setTableSettingsFetched] = useState(false);
   const [chipsCheckedAfterJoin, setChipsCheckedAfterJoin] = useState(false);
@@ -131,8 +133,27 @@ function TablePageContent() {
           
           tempSocket.on('connect', () => {
             console.log('✅ Temp socket connected for settings check');
-            // Join room to get state (we'll disconnect after)
-            tempSocket.emit('room:join', { roomCode, name: 'settings_check', buyIn: 0 });
+            // First check if room exists
+            const normalizedRoomCode = roomCode.toUpperCase();
+            tempSocket.emit('room:check', { roomCode: normalizedRoomCode });
+          });
+          
+          tempSocket.on('room:exists', ({ exists }: { exists: boolean }) => {
+            if (!exists) {
+              console.error(`❌ Room ${roomCode} does not exist`);
+              setTableMinBuyIn(200);
+              setTableMaxBuyIn(1000);
+              setTableSettingsFetched(true);
+              if (timeoutId) clearTimeout(timeoutId);
+              if (tempSocket) {
+                tempSocket.disconnect();
+                tempSocket = null;
+              }
+              return;
+            }
+            // Room exists - now join to get state
+            const normalizedRoomCode = roomCode.toUpperCase();
+            tempSocket.emit('room:join', { roomCode: normalizedRoomCode, name: 'settings_check', buyIn: 0 });
           });
           
           tempSocket.on('table:state', (tableState: any) => {
@@ -341,9 +362,6 @@ function TablePageContent() {
       // Fallback to buyIn param or user's chips
       buyInAmount = buyIn > 0 ? Math.min(userChips, buyIn) : userChips;
     }
-    
-    // Store original buy-in for net profit calculation when leaving
-    setOriginalBuyIn(buyInAmount);
 
     // Deduct chips from user profile IMMEDIATELY before connecting
     try {
@@ -381,8 +399,11 @@ function TablePageContent() {
       if (profile.chips < buyInAmount) {
         console.warn(`⚠️ User has ${profile.chips} chips but calculated buy-in is ${buyInAmount}. Using ${actualBuyIn} instead.`);
         buyInAmount = actualBuyIn;
-        setOriginalBuyIn(actualBuyIn);
       }
+
+      // Store the ACTUAL buy-in amount that will be deducted (for net profit calculation when leaving)
+      // This must be set AFTER we know the actual amount that will be deducted
+      setOriginalBuyIn(actualBuyIn);
 
       // Only deduct if user has chips
       if (actualBuyIn <= 0) {
@@ -394,6 +415,7 @@ function TablePageContent() {
         // Deduct chips - CRITICAL: This must complete before connecting
         const newChips = profile.chips - actualBuyIn;
         console.log(`💰 Deducting ${actualBuyIn} chips. Current: ${profile.chips}, New: ${newChips}`);
+        console.log(`📝 Original buy-in set to: ${actualBuyIn} (for leave calculation)`);
         
         const { data: updatedProfile, error: updateError } = await supabase
           .from('profiles')
@@ -460,9 +482,11 @@ function TablePageContent() {
       console.error('Error fetching profile picture:', error);
     }
     
-    console.log('🔵 Join button clicked, connecting...', { roomCode, playerName: nameToUse, buyInAmount, smallBlind, bigBlind, buyInType: typeof buyInAmount, profilePic });
+    // Normalize room code before connecting
+    const normalizedRoomCode = roomCode.toUpperCase();
+    console.log('🔵 Join button clicked, connecting...', { roomCode: normalizedRoomCode, playerName: nameToUse, buyInAmount, smallBlind, bigBlind, buyInType: typeof buyInAmount, profilePic });
     setHasJoined(true);
-    connect(roomCode, nameToUse, buyInAmount, smallBlind, bigBlind, profilePic);
+    connect(normalizedRoomCode, nameToUse, buyInAmount, smallBlind, bigBlind, profilePic);
   };
 
   useEffect(() => {
@@ -478,24 +502,73 @@ function TablePageContent() {
       if (currentPlayer) {
         setChipsCheckedAfterJoin(true);
         
-        // Get table settings
-        const hasUrlParams = searchParams.get('minBuyIn') || searchParams.get('maxBuyIn');
-        let minBuyIn = parseInt(searchParams.get('minBuyIn') || '0');
+        // Fetch current chips from database (after deduction) to check accurately
+        const checkChips = async () => {
+          try {
+            const supabase = createClient();
+            const { data: { user: authUser } } = await supabase.auth.getUser();
+            
+            if (!authUser) {
+              return;
+            }
+
+            // Fetch current chips from profile
+            const { data: profile } = await supabase
+              .from('profiles')
+              .select('chips')
+              .eq('id', authUser.id)
+              .single();
+
+            if (!profile) {
+              return;
+            }
+
+            const currentChips = profile.chips || 0;
+            
+            // Get table settings - prioritize URL params, then table state, then fetched settings
+            const hasUrlParams = searchParams.get('minBuyIn') || searchParams.get('maxBuyIn');
+            let minBuyIn = parseInt(searchParams.get('minBuyIn') || '0');
+            
+            // If joining by code, try to get from table state or fetched settings
+            if (!hasUrlParams) {
+              // First try to get from table state (if maxBet is set, calculate min as 20%)
+              if (state.maxBet && state.maxBet > 0) {
+                minBuyIn = Math.floor(state.maxBet * 0.2); // 20% of max as minimum
+                console.log(`📋 Got minBuyIn from table state: ${minBuyIn} (20% of maxBet ${state.maxBet})`);
+              } 
+              // Otherwise use fetched table settings
+              else if (tableMinBuyIn > 0) {
+                minBuyIn = tableMinBuyIn;
+                console.log(`📋 Got minBuyIn from fetched settings: ${minBuyIn}`);
+              }
+              // Last resort: calculate from maxBuyIn if we have it
+              else if (tableMaxBuyIn > 0) {
+                minBuyIn = Math.floor(tableMaxBuyIn * 0.2);
+                console.log(`📋 Calculated minBuyIn from tableMaxBuyIn: ${minBuyIn} (20% of ${tableMaxBuyIn})`);
+              }
+            }
+            
+            console.log(`🔍 Post-join chip check: currentChips=${currentChips}, minBuyIn=${minBuyIn}, hasUrlParams=${!!hasUrlParams}`);
+            
+            // Check if player has enough chips for minimum buy-in
+            if (minBuyIn > 0 && currentChips < minBuyIn) {
+              console.log(`⚠️ Player has ${currentChips} chips but needs ${minBuyIn} for this table - forcing leave`);
+              setRequiredChips(minBuyIn);
+              setCurrentChipsForDialog(currentChips);
+              setInsufficientChipsDialogOpen(true);
+            }
+          } catch (error) {
+            console.error('Error checking chips after join:', error);
+          }
+        };
         
-        // If joining by code, get from state
-        if (!hasUrlParams && state.maxBet) {
-          minBuyIn = Math.floor(state.maxBet * 0.2); // 20% of max as minimum
-        }
-        
-        // Check if player has enough chips for minimum buy-in
-        if (minBuyIn > 0 && userChips < minBuyIn) {
-          console.log(`⚠️ Player has ${userChips} chips but needs ${minBuyIn} for this table`);
-          setRequiredChips(minBuyIn);
-          setInsufficientChipsDialogOpen(true);
-        }
+        // Small delay to ensure state is updated and chips are deducted
+        setTimeout(() => {
+          checkChips();
+        }, 500);
       }
     }
-  }, [hasJoined, playerId, state, chipsCheckedAfterJoin, userChips, searchParams, disconnect, router]);
+  }, [hasJoined, playerId, state, chipsCheckedAfterJoin, searchParams, tableMinBuyIn, tableMaxBuyIn]);
 
   const currentState = state; // Only use real state from socket, no demo state
   const currentPlayerId = playerId;
@@ -735,7 +808,7 @@ function TablePageContent() {
               <div className="space-y-4">
                 <div className="bg-white/5 border border-white/10 rounded-lg p-4">
                   <p className="text-white/60 font-mono text-sm mb-2">Your Chips</p>
-                  <p className="text-2xl font-bold text-white font-mono">{userChips.toLocaleString()}</p>
+                  <p className="text-2xl font-bold text-white font-mono">{currentChipsForDialog.toLocaleString()}</p>
                 </div>
                 
                 <div className="bg-red-500/10 border border-red-500/20 rounded-lg p-4">
@@ -744,14 +817,49 @@ function TablePageContent() {
                 </div>
               </div>
               
-              <p className="text-white/70 font-mono text-sm">
-                You need at least <span className="text-white font-semibold">{requiredChips.toLocaleString()}</span> chips to join this table.
+              <p className="text-white/70 font-mono text-sm text-center">
+                You don't have enough chips to play at this table.
+                <br />
+                You need at least <span className="text-white font-semibold">{requiredChips.toLocaleString()}</span> chips, but you only have <span className="text-white font-semibold">{currentChipsForDialog.toLocaleString()}</span>.
               </p>
               
               <div className="pt-4">
                 <Button
-                  onClick={() => {
+                  onClick={async () => {
                     setInsufficientChipsDialogOpen(false);
+                    
+                    // Return the player's stack to their profile before leaving
+                    try {
+                      const supabase = createClient();
+                      const { data: { user: authUser } } = await supabase.auth.getUser();
+                      
+                      if (authUser && state) {
+                        const currentPlayer = state.players.find(p => p.id === playerId);
+                        const remainingStack = currentPlayer?.stack || 0;
+                        
+                        if (remainingStack > 0) {
+                          // Fetch current chips
+                          const { data: profile } = await supabase
+                            .from('profiles')
+                            .select('chips')
+                            .eq('id', authUser.id)
+                            .single();
+
+                          if (profile) {
+                            // Add back the remaining stack
+                            const newChips = profile.chips + remainingStack;
+                            await supabase
+                              .from('profiles')
+                              .update({ chips: newChips })
+                              .eq('id', authUser.id);
+                            console.log(`💰 Returned ${remainingStack} chips. Profile chips: ${profile.chips} → ${newChips}`);
+                          }
+                        }
+                      }
+                    } catch (error) {
+                      console.error('Error returning chips:', error);
+                    }
+                    
                     // Make player leave the table
                     disconnect();
                     router.push('/');
@@ -812,7 +920,8 @@ function TablePageContent() {
         minBuyIn={parseInt(searchParams.get('minBuyIn') || '0')}
         maxBuyIn={parseInt(searchParams.get('maxBuyIn') || '0')}
       />
-      {winnerInfo && (
+      {/* Only show winner if there are at least 2 players and a hand was actually played */}
+      {winnerInfo && currentState.players.length >= 2 && currentState.pot > 0 && (
         <WinnerDisplay 
           winnerName={winnerInfo.winnerName} 
           potAmount={winnerInfo.potAmount}
